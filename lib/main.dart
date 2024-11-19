@@ -9,6 +9,8 @@ void main() async {
 }
 
 class BookReaderApp extends StatelessWidget {
+  const BookReaderApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

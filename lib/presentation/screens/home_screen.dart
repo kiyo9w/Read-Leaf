@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
 
 class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     // Placeholder for the document library
@@ -10,8 +13,21 @@ class HomeScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: Icon(Icons.settings),
-            onPressed: () {
-              // Navigate to settings screen (to be implemented)
+            onPressed: () async {
+              FilePickerResult? result = await FilePicker.platform.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['pdf', 'epub'],
+              );
+
+              if (result != null) {
+                String? filePath = result.files.single.path;
+                if (filePath != null) {
+                  // Handle the selected file
+                  // Save it to the app's local storage or database
+                }
+              } else {
+                // User canceled the picker
+              }
             },
           ),
         ],
@@ -25,8 +41,8 @@ class HomeScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
         },
-        child: Icon(Icons.add),
         tooltip: 'Add Document',
+        child: Icon(Icons.add),
       ),
     );
   }
