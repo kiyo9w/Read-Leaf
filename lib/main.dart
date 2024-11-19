@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'presentation/providers/document_provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'data/models/document_model.dart';
-import 'presentation/providers/document_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

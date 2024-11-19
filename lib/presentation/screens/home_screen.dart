@@ -5,10 +5,13 @@ import '../../data/models/document_model.dart';
 import '../providers/document_provider.dart';
 import 'dart:io';
 import 'package:uuid/uuid.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'document_viewer_screen.dart';
+// import 'package:permission_handler/permission_handler.dart';
 
 class HomeScreen extends StatelessWidget {
-  final uuid = Uuid(); // To generate unique IDs
+  final uuid = Uuid();
+
+  HomeScreen({super.key}); // To generate unique IDs
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +47,12 @@ class HomeScreen extends StatelessWidget {
                     document.type == 'pdf' ? Icons.picture_as_pdf : Icons.book,
                   ),
                   onTap: () {
-                    // Open the document
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DocumentViewerScreen(document: document),
+                      ),
+                    );
                   },
                 );
               },
@@ -54,10 +62,11 @@ class HomeScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          var status = await Permission.storage.status;
-          if (!status.isGranted) {
-            await Permission.storage.request();
-          }
+          // Wont work inside IDX testing enviroment
+          // var status = await Permission.storage.status;
+          // if (!status.isGranted) {
+          //   await Permission.storage.request();
+          // }
           FilePickerResult? result = await FilePicker.platform.pickFiles(
             type: FileType.custom,
             allowedExtensions: ['pdf', 'epub'],
