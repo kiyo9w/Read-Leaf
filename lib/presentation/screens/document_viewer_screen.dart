@@ -1,6 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
+import 'dart:io';
 import '../../data/models/document_model.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:epub_view/epub_view.dart';
@@ -15,32 +14,60 @@ class DocumentViewerScreen extends StatefulWidget {
 }
 
 class _DocumentViewerScreenState extends State<DocumentViewerScreen> {
-  late EpubController _epubController;
+  EpubController? _epubController;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     if (widget.document.type == 'epub') {
-      _epubController = EpubController(
-        document: EpubDocument.openFile(widget.document.path),
-      );
+      _initializeEpubController();
+    } else {
+      _isLoading = false;
+    }
+  }
+
+  Future<void> _initializeEpubController() async {
+    try {
+      final file = File(widget.document.path);
+      final document = EpubDocument.openFile(file);
+
+      setState(() {
+        _epubController = EpubController(document: document);
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      // Handle error
+      print('Error opening EPUB file: $e');
     }
   }
 
   @override
   void dispose() {
-    if (widget.document.type == 'epub') {
-      _epubController.dispose();
-    }
+    _epubController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.document.name),
+        ),
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     if (widget.document.type == 'pdf') {
       return PDFViewer(document: widget.document);
-    } else if (widget.document.type == 'epub') {
-      return EPUBViewer(controller: _epubController, document: widget.document);
+    } else if (widget.document.type == 'epub' && _epubController != null) {
+      return EPUBViewer(controller: _epubController!, document: widget.document);
     } else {
       return Scaffold(
         appBar: AppBar(
@@ -72,69 +99,32 @@ class PDFViewer extends StatelessWidget {
   }
 }
 
-class EPUBViewer extends StatefulWidget {
+class EPUBViewer extends StatelessWidget {
   final EpubController controller;
   final DocumentModel document;
 
   EPUBViewer({required this.controller, required this.document});
 
   @override
-  _EPUBViewerState createState() => _EPUBViewerState();
-}
-
-class _EPUBViewerState extends State<EPUBViewer> {
-  @override
-  void initState() {
-    super.initState();
-    // Load the last position if available
-    final lastPosition = _getLastPosition();
-    if (lastPosition != null) {
-      widget.controller.gotoEpubCfi(lastPosition);
-    }
-  }
-
-  @override
-  void dispose() {
-    // Save the current position
-    final currentPosition = widget.controller.generateEpubCfi();
-    _saveLastPosition(currentPosition!);
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: EpubViewActualChapter(
-          controller: widget.controller,
+          controller: controller,
           builder: (chapterValue) => Text(
-            chapterValue?.chapter?.Title?.trim() ?? widget.document.name,
+            chapterValue?.chapter?.Title?.trim() ?? document.name,
             textAlign: TextAlign.start,
           ),
         ),
       ),
       drawer: Drawer(
         child: EpubViewTableOfContents(
-          controller: widget.controller,
+          controller: controller,
         ),
       ),
       body: EpubView(
-        controller: widget.controller,
+        controller: controller,
       ),
     );
   }
-
-  String? _getLastPosition() {
-    // Retrieve the last position from persistent storage (e.g., Hive, SharedPreferences)
-    // For example:
-    // return Hive.box('positions').get(widget.document.id);
-    return null;
-  }
-
-  void _saveLastPosition(String cfi) {
-    // Save the current position to persistent storage
-    // For example:
-    // Hive.box('positions').put(widget.document.id, cfi);
-  }
 }
-
