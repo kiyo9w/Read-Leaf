@@ -12,6 +12,7 @@ import 'package:read_leaf/core/utils/utils.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/character_suggestion_chips.dart';
+import 'package:read_leaf/features/characters/data/category_constants.dart';
 
 class CreateCharacterScreen extends StatefulWidget {
   const CreateCharacterScreen({super.key});
@@ -34,6 +35,8 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
   String? _localImagePath;
   final List<String> _selectedTags = [];
   String? _selectedVoice;
+  final List<String> _selectedCategories = [CharacterCategories.custom];
+  static const int _maxCategoryCount = 5;
   bool _isPublic = true;
   int _currentStep = 0;
   final List<String> _selectedTraits = [];
@@ -70,9 +73,9 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
   final _voiceOptions = ['Friendly', 'Professional', 'Casual', 'Formal'];
 
   // Categories for characters
-  final List<String> _categories = ['Study', 'Fiction', 'Research', 'Custom'];
-
-  String _selectedCategory = 'Custom';
+  final List<String> _categories = CharacterCategories.getAllCategories()
+      .where((cat) => cat != CharacterCategories.all)
+      .toList();
 
   final ImagePicker _picker = ImagePicker();
 
@@ -597,28 +600,55 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
           ),
           if (_isPublic) ...[
             SizedBox(height: isTablet ? 20 : 16),
-            Text(
-              'Category',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-                fontSize: isTablet ? 18 : 16,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Categories',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: isTablet ? 18 : 16,
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_selectedCategories.length}/$_maxCategoryCount',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                ),
+              ],
             ),
             SizedBox(height: isTablet ? 12 : 8),
             Wrap(
-              spacing: isTablet ? 12 : 8,
-              runSpacing: isTablet ? 12 : 8,
+              spacing: isTablet ? 10 : 8,
+              runSpacing: isTablet ? 10 : 8,
               children: _categories.map((category) {
-                final isSelected = _selectedCategory == category;
+                final isSelected = _selectedCategories.contains(category);
                 return ChoiceChip(
                   label: Text(category),
                   selected: isSelected,
                   onSelected: (selected) {
-                    if (selected) {
-                      setState(() {
-                        _selectedCategory = category;
-                      });
-                    }
+                    setState(() {
+                      if (selected) {
+                        if (_selectedCategories.length < _maxCategoryCount) {
+                          _selectedCategories.add(category);
+                        }
+                      } else {
+                        if (_selectedCategories.length > 1) {
+                          // Don't allow removing all categories
+                          _selectedCategories.remove(category);
+                        }
+                      }
+                    });
                   },
                   backgroundColor: theme.cardColor,
                   selectedColor: theme.primaryColor.withOpacity(0.2),
@@ -790,7 +820,7 @@ ${_nameController.text}'s Response:""";
             _selectedImagePath ?? 'assets/images/ai_characters/default.png',
         characterVersion: '1.0.0',
         systemPrompt: promptTemplate,
-        tags: [..._selectedTags, 'Custom'],
+        tags: [..._selectedTags, ..._selectedCategories],
         creator: 'User',
         createdAt: now,
         updatedAt: now,
@@ -802,7 +832,9 @@ ${_nameController.text}'s Response:""";
         await aiCharacterService.addCustomCharacter(
           newCharacter,
           isPublic: _isPublic,
-          category: _currentStep == 2 ? _selectedCategory : 'Custom',
+          category: _selectedCategories.isNotEmpty
+              ? _selectedCategories.first
+              : 'Custom',
         );
         await aiCharacterService.setSelectedCharacter(newCharacter);
         if (mounted) {

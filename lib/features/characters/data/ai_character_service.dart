@@ -69,9 +69,19 @@ class AiCharacterService {
     }
   }
 
+  /// Set the selected character for conversations
   Future<void> setSelectedCharacter(AiCharacter character) async {
     try {
+      _log.info('Selecting character: ${character.name}');
+
+      // Save previous character
+      final previousCharacter = _selectedCharacter;
+
+      // Set the new character
       _selectedCharacter = character;
+
+      // Get current time
+      final now = DateTime.now();
 
       // Save selection to server if authenticated
       if (_syncManager.isAuthenticated) {
@@ -79,7 +89,7 @@ class AiCharacterService {
           character.name,
           {
             'character_name': character.name,
-            'last_used': DateTime.now().toIso8601String(),
+            'last_used': now.toIso8601String(),
             'custom_settings': character.tags.contains('Custom')
                 ? {
                     'personality': character.personality,
@@ -93,13 +103,29 @@ class AiCharacterService {
         );
       }
 
-      // Store preferences locally for all characters, not just community ones
-      await _saveCharacterPreference(character.name);
+      // Store preferences locally
+      if (!_characterPreferences.containsKey(character.name)) {
+        _characterPreferences[character.name] = {
+          'last_used': now.toIso8601String(),
+          'custom_settings': {},
+        };
+      } else {
+        // Update last used time
+        _characterPreferences[character.name]!['last_used'] =
+            now.toIso8601String();
+      }
 
-      // Notify listeners of the update
-      _characterUpdateController.add(null);
+      // Save to local storage
+      await _saveAllPreferences();
+
+      // Notify listeners of the change if it's a different character
+      if (previousCharacter?.name != character.name) {
+        _characterUpdateController.add(null);
+      }
+
+      _log.info('Character selected: ${character.name}');
     } catch (e, stack) {
-      _log.severe('Error setting selected character', e, stack);
+      _log.severe('Error selecting character', e, stack);
       rethrow;
     }
   }
@@ -238,34 +264,47 @@ class AiCharacterService {
   /// Get only user-selected characters sorted by last used time
   List<AiCharacter> getUserSelectedCharacters() {
     try {
-      // Start with built-in default characters
-      final defaultCharacters = _characters
-          .where((c) =>
-              !c.tags.contains('Community') ||
-              _characterPreferences.containsKey(c.name))
+      // Get all character names with usage timestamps
+      final characterUsages = _characterPreferences.entries
+          .where((entry) => entry.value.containsKey('last_used'))
+          .map((entry) => MapEntry(
+              entry.key,
+              DateTime.tryParse(entry.value['last_used'] ?? '') ??
+                  DateTime(2000)))
           .toList();
 
-      // Sort by last used time if we have preferences
-      if (_characterPreferences.isNotEmpty) {
-        defaultCharacters.sort((a, b) {
-          final aLastUsed = _characterPreferences[a.name]?['last_used'];
-          final bLastUsed = _characterPreferences[b.name]?['last_used'];
+      // Sort by timestamp, newest first
+      characterUsages.sort((a, b) => b.value.compareTo(a.value));
 
-          if (aLastUsed == null && bLastUsed == null) return 0;
-          if (aLastUsed == null) return 1; // b comes first
-          if (bLastUsed == null) return -1; // a comes first
-
-          // Compare timestamps, newer first
-          return DateTime.parse(bLastUsed).compareTo(DateTime.parse(aLastUsed));
-        });
+      // Get characters in order of recent usage
+      final recentCharacters = <AiCharacter>[];
+      for (final usage in characterUsages) {
+        final character =
+            _characters.where((c) => c.name == usage.key).toList();
+        if (character.isNotEmpty) {
+          recentCharacters.add(character.first);
+        }
       }
 
+      // Get default and template characters as fallback
+      final defaultAndTemplateCharacters = _characters
+          .where((c) =>
+              !c.tags.contains('Community') && !c.tags.contains('Custom'))
+          .toList();
+
+      // Return recent characters first, then defaults/templates that haven't been used
+      final unusedCharacters = defaultAndTemplateCharacters
+          .where((c) => !recentCharacters.any((rc) => rc.name == c.name))
+          .toList();
+
+      final result = [...recentCharacters, ...unusedCharacters];
+
       _log.info(
-          'Returning ${defaultCharacters.length} user-selected characters');
-      return defaultCharacters;
+          'Returning ${result.length} user-selected characters (${recentCharacters.length} recently used)');
+      return result;
     } catch (e) {
       _log.warning('Error getting user-selected characters: $e');
-      // Return empty list as fallback
+      // Return non-community characters as fallback
       return _characters.where((c) => !c.tags.contains('Community')).toList();
     }
   }
@@ -274,6 +313,18 @@ class AiCharacterService {
       {bool isPublic = false, String category = 'Custom'}) async {
     try {
       _log.info('Adding custom character: ${character.name}');
+
+      // Process comma-separated categories
+      final List<String> categories = category
+          .split(',')
+          .map((c) => c.trim())
+          .where((c) => c.isNotEmpty)
+          .toList();
+
+      // Make sure we have at least one category
+      if (categories.isEmpty) {
+        categories.add('Custom');
+      }
 
       // Add to local list first for immediate feedback
       _characters = [
@@ -287,7 +338,7 @@ class AiCharacterService {
           await _templateService.saveTemplate(
             character,
             isPublic: isPublic,
-            category: category,
+            category: categories.first, // Primary category for the server
           );
           _log.info('Successfully saved character to server');
         } catch (e) {
@@ -307,8 +358,13 @@ class AiCharacterService {
         _log.info('Setting new character as selected');
       }
 
-      // Save to local preferences
-      await _saveCharacterPreference(character.name);
+      // Save to local preferences with timestamp
+      final now = DateTime.now();
+      _characterPreferences[character.name] = {
+        'last_used': now.toIso8601String(),
+        'custom_settings': {},
+      };
+      await _saveAllPreferences();
 
       // Notify listeners of the update
       _characterUpdateController.add(null);
@@ -323,6 +379,26 @@ class AiCharacterService {
   Future<void> updateCharacter(AiCharacter character,
       {bool isPublic = false, String category = 'Custom'}) async {
     try {
+      _log.info('Updating character: ${character.name}');
+
+      // Process comma-separated categories
+      final List<String> categories = category
+          .split(',')
+          .map((c) => c.trim())
+          .where((c) => c.isNotEmpty)
+          .toList();
+
+      // Make sure we have at least one category
+      if (categories.isEmpty) {
+        categories.add('Custom');
+      }
+
+      // Create updated character with categories
+      final updatedCharacter = character.copyWith(
+        tags:
+            [...character.tags, ...categories].toSet().toList(), // Deduplicate
+      );
+
       // Try to save to server if authenticated
       if (_syncManager.isAuthenticated) {
         await _templateService.saveTemplate(
@@ -343,8 +419,18 @@ class AiCharacterService {
         ..._characters.where((c) => c.name != character.name),
       ];
 
-      // Save to local preferences
-      await _saveCharacterPreference(character.name);
+      // Save to local preferences with updated timestamp
+      final now = DateTime.now();
+      if (_characterPreferences.containsKey(updatedCharacter.name)) {
+        _characterPreferences[updatedCharacter.name]!['last_used'] =
+            now.toIso8601String();
+      } else {
+        _characterPreferences[updatedCharacter.name] = {
+          'last_used': now.toIso8601String(),
+          'custom_settings': {},
+        };
+      }
+      await _saveAllPreferences();
 
       // Notify listeners of the update
       _characterUpdateController.add(null);
@@ -467,18 +553,24 @@ class AiCharacterService {
     }
   }
 
-  // Helper method to save a character preference
+  /// Save character preference with last used time
   Future<void> _saveCharacterPreference(String characterName) async {
     try {
-      // Store preferences locally
-      _characterPreferences[characterName] = {
-        'last_used': DateTime.now().toIso8601String(),
-        'custom_settings': {},
-      };
+      final now = DateTime.now();
+      if (!_characterPreferences.containsKey(characterName)) {
+        _characterPreferences[characterName] = {
+          'last_used': now.toIso8601String(),
+          'custom_settings': {},
+        };
+      } else {
+        _characterPreferences[characterName]!['last_used'] =
+            now.toIso8601String();
+      }
 
       await _saveAllPreferences();
-    } catch (e) {
-      _log.warning('Failed to save character preference: $e');
+    } catch (e, stack) {
+      _log.warning('Error saving character preference', e, stack);
+      // Non-fatal error
     }
   }
 

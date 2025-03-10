@@ -11,6 +11,7 @@ import 'package:read_leaf/features/auth/presentation/blocs/auth_state.dart';
 import 'package:read_leaf/features/auth/presentation/widgets/auth_dialog.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:read_leaf/nav_screen.dart';
+import 'package:read_leaf/features/characters/data/category_constants.dart';
 
 class ImportCharacterScreen extends StatefulWidget {
   final String filePath;
@@ -32,13 +33,18 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
   final _greetingController = TextEditingController();
   final _scenarioController = TextEditingController();
   bool _isPublic = true;
-  String _selectedCategory = 'Custom';
+  final List<String> _selectedCategories = [CharacterCategories.custom];
   AiCharacter? _importedCharacter;
   bool _isLoading = true;
   String? _error;
 
+  // Max number of categories a user can select
+  static const int _maxCategoryCount = 5;
+
   // Categories for characters
-  final List<String> _categories = ['Study', 'Fiction', 'Research', 'Custom'];
+  final List<String> _categories = CharacterCategories.getAllCategories()
+      .where((cat) => cat != CharacterCategories.all)
+      .toList();
 
   @override
   void initState() {
@@ -134,11 +140,13 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
         final now = DateTime.now();
         final updatedCharacter = _importedCharacter!.copyWith(
           name: _nameController.text,
-          tags: _taglineController.text
-              .split(',')
-              .map((e) => e.trim())
-              .where((e) => e.isNotEmpty)
-              .toList(),
+          tags: [
+            ..._taglineController.text
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty),
+            ..._selectedCategories,
+          ],
           personality: _descriptionController.text,
           greetingMessage: _greetingController.text,
           scenario: _scenarioController.text,
@@ -152,7 +160,9 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
           await aiCharacterService.addCustomCharacter(
             updatedCharacter,
             isPublic: _isPublic,
-            category: _selectedCategory,
+            category: _selectedCategories.isNotEmpty
+                ? _selectedCategories.first
+                : 'Custom',
           );
 
           if (mounted) {
@@ -231,159 +241,165 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Import Character'),
-        actions: [
-          TextButton(
-            onPressed: _importCharacter,
-            child: const Text('Import'),
-          ),
-        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_importedCharacter?.avatarImagePath != null)
-                Center(
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (_importedCharacter?.avatarImagePath != null)
+                    Center(
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
                         ),
+                        child: ClipOval(
+                          child: _buildAvatarImage(theme),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  _buildStyledTextField(
+                    theme: theme,
+                    controller: _nameController,
+                    label: 'Character Name',
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'Please enter a name';
+                      }
+                      return null;
+                    },
+                  ),
+                  _buildStyledTextField(
+                    theme: theme,
+                    controller: _taglineController,
+                    label: 'Tags (comma-separated)',
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'Please enter at least one tag';
+                      }
+                      return null;
+                    },
+                    helperText: 'Enter tags separated by commas',
+                  ),
+                  _buildStyledTextField(
+                    theme: theme,
+                    controller: _descriptionController,
+                    label: 'Description',
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'Please enter a description';
+                      }
+                      return null;
+                    },
+                    maxLines: 8,
+                  ),
+                  _buildStyledTextField(
+                    theme: theme,
+                    controller: _scenarioController,
+                    label: 'Scenario',
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'Please enter a scenario';
+                      }
+                      return null;
+                    },
+                    maxLines: 6,
+                  ),
+                  _buildStyledTextField(
+                    theme: theme,
+                    controller: _greetingController,
+                    label: 'Greeting Message',
+                    validator: (value) {
+                      if (value?.isEmpty ?? true) {
+                        return 'Please enter a greeting message';
+                      }
+                      return null;
+                    },
+                    maxLines: 4,
+                  ),
+                  const SizedBox(height: 24),
+                  _buildPublishingOptions(theme),
+                  if (_isPublic) ...[
+                    const SizedBox(height: 16),
+                    _buildCategorySelector(theme),
+                  ],
+                  const SizedBox(height: 80),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: theme.scaffoldBackgroundColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text('Back'),
+                  ),
+                  ElevatedButton(
+                    onPressed: _importCharacter,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colorScheme.primary,
+                      foregroundColor: theme.colorScheme.onPrimary,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Import',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.check, size: 18),
                       ],
                     ),
-                    child: ClipOval(
-                      child: _buildAvatarImage(theme),
-                    ),
                   ),
-                ),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: _nameController,
-                decoration: const InputDecoration(
-                  labelText: 'Character Name',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter a name';
-                  }
-                  return null;
-                },
+                ],
               ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _taglineController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Tags (comma-separated)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Enter tags separated by commas',
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter at least one tag';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _descriptionController,
-                maxLines: 8,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter a description';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _scenarioController,
-                maxLines: 6,
-                decoration: const InputDecoration(
-                  labelText: 'Scenario',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter a scenario';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _greetingController,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Greeting Message',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value?.isEmpty ?? true) {
-                    return 'Please enter a greeting message';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Publishing Options',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                title: const Text('Public Character'),
-                subtitle: const Text('Allow others to use this character'),
-                value: _isPublic,
-                onChanged: (value) {
-                  setState(() {
-                    _isPublic = value;
-                  });
-                },
-              ),
-              if (_isPublic) ...[
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    border: OutlineInputBorder(),
-                  ),
-                  value: _selectedCategory,
-                  items: _categories.map((category) {
-                    return DropdownMenuItem<String>(
-                      value: category,
-                      child: Text(category),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    if (value != null) {
-                      setState(() {
-                        _selectedCategory = value;
-                      });
-                    }
-                  },
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -512,6 +528,202 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
         size: 50,
         color: theme.colorScheme.onSurfaceVariant,
       ),
+    );
+  }
+
+  Widget _buildCategorySelector(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Categories',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_selectedCategories.length}/$_maxCategoryCount',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _categories.map((category) {
+            final isSelected = _selectedCategories.contains(category);
+            return ChoiceChip(
+              label: Text(category),
+              selected: isSelected,
+              onSelected: (selected) {
+                setState(() {
+                  if (selected) {
+                    if (_selectedCategories.length < _maxCategoryCount) {
+                      _selectedCategories.add(category);
+                    }
+                  } else {
+                    if (_selectedCategories.length > 1) {
+                      // Don't allow removing all categories
+                      _selectedCategories.remove(category);
+                    }
+                  }
+                });
+              },
+              backgroundColor: theme.cardColor,
+              selectedColor: theme.primaryColor.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: isSelected ? theme.primaryColor : null,
+                fontWeight: isSelected ? FontWeight.bold : null,
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStyledTextField({
+    required ThemeData theme,
+    required TextEditingController controller,
+    required String label,
+    required String? Function(String?)? validator,
+    String? helperText,
+    int maxLines = 1,
+    bool autofocus = false,
+    TextInputType? keyboardType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          autofocus: autofocus,
+          keyboardType: keyboardType,
+          style: theme.textTheme.bodyLarge,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+            hintText: 'Enter $label',
+            helperText: helperText,
+            helperMaxLines: 2,
+            helperStyle: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+            ),
+            contentPadding: const EdgeInsets.all(16),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: theme.colorScheme.outline.withOpacity(0.5),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: theme.colorScheme.outline.withOpacity(0.5),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: theme.primaryColor,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ),
+          validator: validator,
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildPublishingOptions(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Publishing Options',
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outline.withOpacity(0.3),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Public Character',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Allow others to use this character',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: _isPublic,
+                  onChanged: (value) {
+                    setState(() {
+                      _isPublic = value;
+                    });
+                  },
+                  activeColor: theme.colorScheme.primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
     );
   }
 }

@@ -38,8 +38,8 @@ class _NavScreenState extends State<NavScreen> {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final activeColor = isDarkMode
-        ? Theme.of(context).colorScheme.primaryContainer
-        : Theme.of(context).colorScheme.primary;
+        ? Colors.white
+        : Colors.black;
     final inactiveColor = isDarkMode
         ? Colors.white.withOpacity(0.5)
         : Colors.black.withOpacity(0.5);

@@ -1,47 +1,28 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
-import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:logging/logging.dart';
+import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 
+/// Utility to load built-in characters that ship with the app
 class DefaultCharacterLoader {
   static final _log = Logger('DefaultCharacterLoader');
-  static const _defaultCharactersPath = 'lib/features/characters/data/default_characters.json';
   static List<AiCharacter>? _cachedCharacters;
 
-  /// Load default character templates from the JSON file
+  /// Load default characters from assets
   static Future<List<AiCharacter>> loadDefaultCharacters() async {
+    // Return from cache if available
+    if (_cachedCharacters != null) {
+      return _cachedCharacters!;
+    }
+
     try {
-      // Return cached characters if available
-      if (_cachedCharacters != null) {
-        _log.info('Returning ${_cachedCharacters!.length} cached characters');
-        return _cachedCharacters!;
-      }
+      _log.info('Loading default characters from assets');
+      final jsonString = await rootBundle
+          .loadString('lib/features/characters/data/default_characters.json');
+      final jsonMap = json.decode(jsonString);
+      final charactersList = jsonMap['characters'] as List;
 
-      _log.info('Loading default characters from $_defaultCharactersPath');
-
-      // Load and parse the JSON file
-      final jsonString = await rootBundle.loadString(_defaultCharactersPath);
-      if (jsonString.isEmpty) {
-        throw Exception('Default characters file is empty');
-      }
-      _log.info('Successfully loaded JSON file');
-
-      final json = jsonDecode(jsonString);
-      if (json == null) {
-        throw Exception('Failed to parse JSON');
-      }
-      _log.info('Successfully parsed JSON');
-
-      if (!json.containsKey('characters')) {
-        throw Exception('Invalid JSON format: missing "characters" key');
-      }
-
-      final charactersList = json['characters'] as List;
-      if (charactersList.isEmpty) {
-        throw Exception('No characters found in JSON');
-      }
-
-      // Convert JSON to AiCharacter objects
+      // Convert each character JSON to an AiCharacter object
       final characters = charactersList
           .map((charJson) {
             try {
@@ -93,30 +74,13 @@ class DefaultCharacterLoader {
   }
 
   /// Validate all default characters
-  static Future<List<String>> validateDefaultCharacters() async {
-    final errors = <String>[];
+  static Future<bool> validateDefaultCharacters() async {
     try {
       final characters = await loadDefaultCharacters();
-
-      for (final character in characters) {
-        final error = AiCharacter.validate(
-          name: character.name,
-          summary: character.summary,
-          personality: character.personality,
-          scenario: character.scenario,
-          greetingMessage: character.greetingMessage,
-          exampleMessages: character.exampleMessages,
-          avatarImagePath: character.avatarImagePath,
-        );
-
-        if (error != null) {
-          errors.add('${character.name}: $error');
-        }
-      }
+      return characters.isNotEmpty;
     } catch (e) {
-      errors.add('Error validating characters: $e');
+      _log.warning('Error validating default characters: $e');
+      return false;
     }
-
-    return errors;
   }
 }

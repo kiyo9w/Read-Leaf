@@ -143,11 +143,14 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   // Variables for detecting text selection handle drags
   bool _isHandleDragInProgress = false;
+  bool _isFloatingMenuVisible = false; // New flag to track if menu is visible
 
   // Remove any existing floating selection menu
   void _removeSelectionMenu() {
     _selectionMenuEntry?.remove();
     _selectionMenuEntry = null;
+    // Also reset floating menu visibility flag for good measure
+    _isFloatingMenuVisible = false;
   }
 
   // Helper method to determine if a point is near a selection handle
@@ -183,6 +186,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       if (mounted && _selectedText != null && _selectedText!.isNotEmpty) {
         final bounds = _getSelectionBounds();
         if (bounds != null) {
+          // Remove existing menu if any
+          _removeFloatingMenu();
+          // Show menu at new position
           _showFloatingMenuAt(bounds.bottomCenter);
         }
       }
@@ -196,6 +202,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     // Ensure we have selected text before showing the menu
     if (_selectedText == null || _selectedText!.isEmpty) return;
+
+    // Don't show if a menu is already visible
+    if (_isFloatingMenuVisible) return;
 
     // Create a new overlay entry
     _selectionMenuEntry = OverlayEntry(
@@ -2004,13 +2013,33 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
           onTap: _handleTapGesture,
           child: Listener(
             onPointerDown: (event) {
+              // Save the pointer down position for better selection handling
               _lastPointerDownPosition = event.position;
+
+              // If we're near a selection handle, start drag operation
+              if (_isFloatingMenuVisible &&
+                  _isNearSelectionHandle(event.position)) {
+                _startSelectionDrag();
+                return;
+              }
             },
             onPointerUp: (event) {
               final anchor = _lastPointerDownPosition ?? event.position;
-              if (mounted && _selectedText?.isNotEmpty == true) {
+
+              // If we were dragging handles, handle that case
+              if (_isHandleDragInProgress) {
+                _endSelectionDrag();
+                return;
+              }
+
+              // Only show menu if text is selected and menu isn't already visible
+              if (mounted &&
+                  _selectedText?.isNotEmpty == true &&
+                  !_isFloatingMenuVisible) {
                 Future.delayed(const Duration(milliseconds: 200), () {
-                  if (mounted && _selectedText?.isNotEmpty == true) {
+                  if (mounted &&
+                      _selectedText?.isNotEmpty == true &&
+                      !_isFloatingMenuVisible) {
                     _showFloatingMenuAt(anchor);
                   }
                 });
@@ -2321,6 +2350,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   }
 
   void _showFloatingMenuAt(Offset anchor) {
+    // Don't show another menu if one is already visible
+    if (_isFloatingMenuVisible) {
+      return;
+    }
+
     final screenSize = MediaQuery.of(context).size;
     final bool isInUpperHalf = anchor.dy < (screenSize.height / 2);
     _removeFloatingMenu();
@@ -2665,6 +2699,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     if (_floatingMenuEntry != null) {
       Overlay.of(context).insert(_floatingMenuEntry!);
     }
+    _isFloatingMenuVisible = true;
   }
 
   void _removeFloatingMenu() {
@@ -2672,6 +2707,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       _floatingMenuEntry!.remove();
       _floatingMenuEntry = null;
     }
+    _isFloatingMenuVisible = false; // Reset the visibility flag
   }
 
   int _calculateCurrentPage() {
@@ -3577,7 +3613,16 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                       },
                       child: Listener(
                         onPointerDown: (event) {
+                          // If menu is already visible and user is near selection handles,
+                          // handle as a potential drag operation
+                          if (_isFloatingMenuVisible &&
+                              _isNearSelectionHandle(event.position)) {
+                            _startSelectionDrag();
+                            return;
+                          }
+
                           // Close any existing menu when user starts a new selection
+                          // (that's not a handle drag)
                           _removeFloatingMenu();
                           _lastPointerDownPosition = event.position;
                           _pointerDownTime = DateTime.now();
@@ -3598,7 +3643,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                           }
 
                           // Only show menu if text is selected and it was a hold-drag action (not just a tap)
-                          if (mounted && _selectedText?.isNotEmpty == true) {
+                          if (mounted &&
+                              _selectedText?.isNotEmpty == true &&
+                              !_isFloatingMenuVisible) {
                             // Calculate duration between pointer down and up
                             final pointerUpTime = DateTime.now();
                             final tapDuration = pointerUpTime
@@ -3621,7 +3668,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                 if (mounted &&
                                     _selectedText != null &&
                                     _selectedText!.isNotEmpty &&
-                                    !_isHandleDragInProgress) {
+                                    !_isHandleDragInProgress &&
+                                    !_isFloatingMenuVisible) {
                                   _showFloatingMenuAt(anchor);
                                 }
                               });
@@ -3819,13 +3867,16 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     // Only proceed if the component is still mounted
     if (!mounted) return;
 
-    // Check if there's already a menu showing and remove it
-    _removeSelectionMenu();
+    // Don't show a new menu if one is already visible
+    if (_isFloatingMenuVisible) return;
 
     // Show the selection menu, but with a small delay to avoid conflicts with
     // ongoing selection operations
     Future.delayed(const Duration(milliseconds: 50), () {
-      if (mounted && _selectedText != null && _selectedText!.isNotEmpty) {
+      if (mounted &&
+          _selectedText != null &&
+          _selectedText!.isNotEmpty &&
+          !_isFloatingMenuVisible) {
         _showFloatingSelectionMenu();
       }
     });

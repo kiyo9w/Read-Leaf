@@ -10,10 +10,82 @@ import 'package:file_picker/file_picker.dart';
 import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/features/library/presentation/widgets/refresh_animation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/character_info_popup.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:read_leaf/features/characters/data/category_constants.dart';
 import 'dart:io';
+import 'package:flutter/rendering.dart';
+
+/// Controller class to manage character screen state
+class CharacterScreenController {
+  final AiCharacterService _characterService = getIt<AiCharacterService>();
+  final ValueNotifier<AiCharacter?> selectedCharacter =
+      ValueNotifier<AiCharacter?>(null);
+  final ValueNotifier<List<AiCharacter>> characters =
+      ValueNotifier<List<AiCharacter>>([]);
+  final ValueNotifier<bool> isLoading = ValueNotifier<bool>(false);
+  StreamSubscription? _characterUpdateSubscription;
+
+  CharacterScreenController() {
+    // Initialize with the current selected character
+    selectedCharacter.value = _characterService.getSelectedCharacter();
+
+    // Listen for character updates from the service
+    _characterUpdateSubscription =
+        _characterService.onCharacterUpdate.listen((_) {
+      selectedCharacter.value = _characterService.getSelectedCharacter();
+    });
+
+    // Initial load of characters
+    loadCharacters();
+  }
+
+  void dispose() {
+    selectedCharacter.dispose();
+    characters.dispose();
+    isLoading.dispose();
+    _characterUpdateSubscription?.cancel();
+  }
+
+  Future<void> loadCharacters() async {
+    isLoading.value = true;
+    try {
+      final allCharacters = await _characterService.getAllCharacters();
+      characters.value = allCharacters;
+    } catch (e) {
+      debugPrint('Error loading characters: $e');
+      // Fall back to sync method if async fails
+      characters.value = _characterService.getCharactersSync();
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<List<AiCharacter>> getCharactersByCategory(String category) async {
+    if (category == 'All') {
+      return characters.value;
+    }
+
+    try {
+      return await _characterService.getCharactersByCategory(category);
+    } catch (e) {
+      // Fall back to filtering the current characters if the service call fails
+      return characters.value.where((c) => c.tags.contains(category)).toList();
+    }
+  }
+
+  Future<void> selectCharacter(AiCharacter character,
+      {VoidCallback? onCharacterChanged}) async {
+    // Don't set state here - just call the service
+    await _characterService.setSelectedCharacter(character);
+
+    // The subscription will update the selectedCharacter ValueNotifier
+    // Callback for any parent widgets
+    onCharacterChanged?.call();
+  }
+}
 
 class CharacterScreen extends StatefulWidget {
   final VoidCallback? onCharacterChanged;
@@ -30,21 +102,14 @@ class CharacterScreen extends StatefulWidget {
 class _CharacterScreenState extends State<CharacterScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final AiCharacterService _characterService = getIt<AiCharacterService>();
-  late AiCharacter? _selectedCharacter;
+  late CharacterScreenController _controller;
   bool _showVoices = false;
   final ScrollController _mainScrollController = ScrollController();
   final Map<String, ScrollController> _tabScrollControllers = {};
   bool _isScrollingDown = false;
 
   // Categories for characters
-  final List<String> _categories = [
-    'All',
-    'Study',
-    'Fiction',
-    'Research',
-    'Custom'
-  ];
+  final List<String> _categories = CharacterCategories.getAllCategories();
 
   // Default voices
   final List<Map<String, String>> _voices = [
@@ -103,12 +168,12 @@ class _CharacterScreenState extends State<CharacterScreen>
   @override
   void initState() {
     super.initState();
+    _controller = CharacterScreenController();
     _tabController = TabController(length: _categories.length, vsync: this);
     for (var category in _categories) {
       _tabScrollControllers[category] = ScrollController()
         ..addListener(() => _scrollListener(_tabScrollControllers[category]!));
     }
-    _selectedCharacter = _characterService.getSelectedCharacter();
   }
 
   @override
@@ -118,6 +183,7 @@ class _CharacterScreenState extends State<CharacterScreen>
       controller.dispose();
     }
     _tabController.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -142,22 +208,47 @@ class _CharacterScreenState extends State<CharacterScreen>
   void _selectCharacter(AiCharacter character) {
     if (!mounted) return;
 
-    setState(() {
-      _selectedCharacter = character;
-    });
-    _characterService.setSelectedCharacter(character);
+    // First update the UI right away without waiting for the service
+    // This makes the selection appear faster
+    final currentContext = context;
 
-    // Notify parent about character change
+    // Show a subtle visual feedback
+    HapticFeedback.selectionClick();
+
+    // Use a delayed navigator pop to make the transition smoother
+    if (mounted && Navigator.canPop(context)) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && Navigator.canPop(currentContext)) {
+          Navigator.pop(currentContext);
+        }
+      });
+    }
+
+    // Now update the actual selection in the background
+    _controller.selectCharacter(character, onCharacterChanged: () {
+      // Notify parent about character change
+      widget.onCharacterChanged?.call();
+
+      // Find and refresh HomeScreen
+      if (mounted) {
+        final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
+        homeScreen?.generateNewAIMessage();
+      }
+    });
+  }
+
+  // Create a method to handle refreshing after character create/import
+  Future<void> _refreshAfterCharacterCreation() async {
+    // Avoid a full rebuild by just updating the controller data
+    await _controller.loadCharacters();
+
+    // Notify parent
     widget.onCharacterChanged?.call();
 
-    // Find and refresh HomeScreen
+    // Update home screen
     if (mounted) {
       final homeScreen = context.findAncestorStateOfType<HomeScreenState>();
       homeScreen?.generateNewAIMessage();
-    }
-
-    if (mounted && Navigator.canPop(context)) {
-      Navigator.pop(context);
     }
   }
 
@@ -197,22 +288,30 @@ class _CharacterScreenState extends State<CharacterScreen>
                         },
                       ),
                     )
-                  : TabBarView(
-                      controller: _tabController,
-                      children: _categories.map((category) {
-                        return PullToRefreshAnimation(
-                          onRefresh: () async {
-                            await Future.delayed(const Duration(seconds: 2));
-                            if (mounted) {
-                              setState(() {});
-                            }
-                          },
-                          child: SingleChildScrollView(
-                            controller: _tabScrollControllers[category],
-                            child: _buildCategoryContent(category, theme),
-                          ),
+                  : ValueListenableBuilder<bool>(
+                      valueListenable: _controller.isLoading,
+                      builder: (context, isLoading, child) {
+                        if (isLoading) {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+
+                        return TabBarView(
+                          controller: _tabController,
+                          children: _categories.map((category) {
+                            return PullToRefreshAnimation(
+                              onRefresh: () async {
+                                await _controller.loadCharacters();
+                              },
+                              child: SingleChildScrollView(
+                                controller: _tabScrollControllers[category],
+                                child: _buildCategoryContent(category, theme),
+                              ),
+                            );
+                          }).toList(),
                         );
-                      }).toList(),
+                      },
                     ),
             ),
           ],
@@ -298,11 +397,8 @@ class _CharacterScreenState extends State<CharacterScreen>
                                               if (result == true && mounted) {
                                                 widget.onCharacterChanged
                                                     ?.call();
-                                                final homeScreen = context
-                                                    .findAncestorStateOfType<
-                                                        HomeScreenState>();
-                                                homeScreen
-                                                    ?.generateNewAIMessage();
+                                                // Reload characters after creation
+                                                await _refreshAfterCharacterCreation();
                                               }
                                             },
                                             child: Container(
@@ -352,7 +448,8 @@ class _CharacterScreenState extends State<CharacterScreen>
                                                 final file = result.files.first;
                                                 if (!mounted) return;
 
-                                                await Navigator.push(
+                                                final importResult =
+                                                    await Navigator.push(
                                                   context,
                                                   MaterialPageRoute(
                                                     builder: (context) =>
@@ -361,6 +458,12 @@ class _CharacterScreenState extends State<CharacterScreen>
                                                     ),
                                                   ),
                                                 );
+
+                                                if (importResult == true &&
+                                                    mounted) {
+                                                  // Reload characters after import
+                                                  await _refreshAfterCharacterCreation();
+                                                }
                                               }
                                             },
                                             child: Container(
@@ -570,7 +673,7 @@ class _CharacterScreenState extends State<CharacterScreen>
 
   Widget _buildTabBar(ThemeData theme) {
     return Container(
-      height: 40,
+      height: 44,
       margin: const EdgeInsets.symmetric(vertical: 8),
       child: TabBar(
         controller: _tabController,
@@ -578,15 +681,39 @@ class _CharacterScreenState extends State<CharacterScreen>
         labelColor: theme.primaryColor,
         unselectedLabelColor:
             theme.textTheme.bodyLarge?.color?.withOpacity(0.7),
+        indicator: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: theme.primaryColor.withOpacity(0.1),
+        ),
         indicatorSize: TabBarIndicatorSize.label,
-        tabs: _categories.map((category) => Tab(text: category)).toList(),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+        tabs: _categories
+            .map((category) => Tab(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(CharacterCategories.getCategoryIcon(category),
+                            size: 18),
+                        const SizedBox(width: 8),
+                        Text(category),
+                      ],
+                    ),
+                  ),
+                ))
+            .toList(),
       ),
     );
   }
 
   Widget _buildCategoryContent(String category, ThemeData theme) {
     return FutureBuilder<List<AiCharacter>>(
-      future: _loadCharactersByCategory(category),
+      future: _controller.getCharactersByCategory(category),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -632,16 +759,21 @@ class _CharacterScreenState extends State<CharacterScreen>
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFeaturedCharacters(theme, characters.take(5).toList()),
-              const SizedBox(height: 16),
-              _buildAllCharacters(theme, characters),
-              const SizedBox(height: 16),
-              _buildRecentCharacters(theme, characters.take(6).toList()),
-              const SizedBox(height: 80),
-            ],
+          child: ValueListenableBuilder<AiCharacter?>(
+            valueListenable: _controller.selectedCharacter,
+            builder: (context, selectedCharacter, child) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildFeaturedCharacters(theme, characters),
+                  const SizedBox(height: 16),
+                  _buildAllCharacters(theme, characters),
+                  const SizedBox(height: 16),
+                  _buildRecentCharacters(theme, category),
+                  const SizedBox(height: 80),
+                ],
+              );
+            },
           ),
         );
       },
@@ -688,23 +820,25 @@ class _CharacterScreenState extends State<CharacterScreen>
     );
   }
 
-  List<AiCharacter> _getCharactersByCategory(String category) {
-    final allCharacters = _characterService.getCharactersSync();
-    if (category == 'All') return allCharacters;
-    return allCharacters.where((char) => char.tags.contains(category)).toList();
-  }
-
-  Future<List<AiCharacter>> _loadCharactersByCategory(String category) async {
-    try {
-      return await _characterService.getCharactersByCategory(category);
-    } catch (e) {
-      // Fall back to local filtering if server request fails
-      return _getCharactersByCategory(category);
-    }
-  }
-
   Widget _buildFeaturedCharacters(
       ThemeData theme, List<AiCharacter> characters) {
+    // Choose 5 characters from the community or popular ones instead of default ones
+    final featuredCharacters =
+        characters.where((c) => c.tags.contains('Community')).take(5).toList();
+
+    // If we don't have enough community characters, add some popular ones
+    if (featuredCharacters.length < 5) {
+      final remainingCount = 5 - featuredCharacters.length;
+      final otherCharacters = characters
+          .where((c) =>
+              !c.tags.contains('Community') &&
+              !featuredCharacters.any((f) => f.name == c.name))
+          .take(remainingCount)
+          .toList();
+
+      featuredCharacters.addAll(otherCharacters);
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -712,62 +846,189 @@ class _CharacterScreenState extends State<CharacterScreen>
         const SizedBox(height: 8),
         SizedBox(
           height: 140,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: characters.length.clamp(0, 5),
-            itemBuilder: (context, index) => _buildFeaturedCharacterCard(
-              characters[index],
-              theme,
-              isSelected: characters[index].name == _selectedCharacter?.name,
-            ),
-          ),
+          child: featuredCharacters.isEmpty
+              ? Center(
+                  child: Text(
+                    'No featured characters available',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color:
+                          theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: featuredCharacters.length,
+                  itemBuilder: (context, index) => _buildFeaturedCharacterCard(
+                    featuredCharacters[index],
+                    theme,
+                  ),
+                ),
         ),
       ],
     );
   }
 
   Widget _buildAllCharacters(ThemeData theme, List<AiCharacter> characters) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader('All Characters', theme),
-        const SizedBox(height: 12),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: characters.length,
-          itemBuilder: (context, index) => _buildCharacterListCard(
-            characters[index],
-            theme,
-            isSelected: characters[index].name == _selectedCharacter?.name,
-          ),
-        ),
-      ],
+    // State for expanded view
+    final ValueNotifier<bool> expanded = ValueNotifier<bool>(false);
+
+    final initialCount = 8; // Show only 8 characters initially
+    final displayCount = expanded.value
+        ? characters.length
+        : initialCount.clamp(0, characters.length);
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: expanded,
+      builder: (context, isExpanded, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader('All Characters', theme),
+            const SizedBox(height: 12),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: isExpanded
+                  ? characters.length
+                  : displayCount.clamp(0, characters.length),
+              itemBuilder: (context, index) => _buildCharacterListCard(
+                characters[index],
+                theme,
+              ),
+            ),
+            if (characters.length > initialCount) ...[
+              const SizedBox(height: 12),
+              _buildShowMoreButton(
+                isExpanded: isExpanded,
+                onPressed: () => expanded.value = !isExpanded,
+                theme: theme,
+                totalCount: characters.length,
+                initialCount: initialCount,
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildRecentCharacters(ThemeData theme, List<AiCharacter> characters) {
+  Widget _buildShowMoreButton({
+    required bool isExpanded,
+    required VoidCallback onPressed,
+    required ThemeData theme,
+    required int totalCount,
+    required int initialCount,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(24),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.7),
+                    theme.colorScheme.primaryContainer.withOpacity(0.7),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.shadowColor.withOpacity(0.1),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isExpanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
+                      color: theme.colorScheme.onPrimary,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      isExpanded
+                          ? 'Show Less'
+                          : 'Show More (${totalCount - initialCount})',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecentCharacters(ThemeData theme, String currentCategory) {
+    // Get recently used characters from the service
+    final allRecentCharacters =
+        getIt<AiCharacterService>().getUserSelectedCharacters();
+
+    // Filter by current category if not "All"
+    List<AiCharacter> recentCharacters;
+    if (currentCategory == 'All') {
+      recentCharacters = allRecentCharacters.take(6).toList();
+    } else {
+      recentCharacters = allRecentCharacters
+          .where((c) => c.tags.contains(currentCategory))
+          .take(6)
+          .toList();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader('Recent Characters', theme),
         const SizedBox(height: 12),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 0.75,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: characters.length.clamp(0, 6),
-          itemBuilder: (context, index) => _buildCharacterGridCard(
-            characters[index],
-            theme,
-            isSelected: characters[index].name == _selectedCharacter?.name,
-          ),
-        ),
+        recentCharacters.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20.0),
+                  child: Text(
+                    'No recent characters in this category',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color:
+                          theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+              )
+            : GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  childAspectRatio: 0.75,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemCount: recentCharacters.length,
+                itemBuilder: (context, index) => _buildCharacterGridCard(
+                  recentCharacters[index],
+                  theme,
+                ),
+              ),
       ],
     );
   }
@@ -803,63 +1064,75 @@ class _CharacterScreenState extends State<CharacterScreen>
     ThemeData theme, {
     bool isSelected = false,
   }) {
-    return GestureDetector(
-      onTap: () => _selectCharacter(character),
-      onLongPress: () => _showCharacterInfoPopup(context, character),
-      child: Container(
-        width: 110,
-        margin: const EdgeInsets.only(right: 8),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: theme.primaryColor, width: 2)
-              : null,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(12)),
-              child: _buildAvatarImage(
-                character.avatarImagePath,
-                height: 85,
-                width: double.infinity,
-                memCacheHeight: 200,
-                memCacheWidth: 200,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    character.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+    return ValueListenableBuilder<AiCharacter?>(
+      valueListenable: _controller.selectedCharacter,
+      builder: (context, selectedCharacter, child) {
+        final isSelected = character.name == selectedCharacter?.name;
+        final heroTag = 'featured-${character.name}';
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeInOut,
+          width: 110,
+          margin: const EdgeInsets.only(right: 8),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: isSelected
+                ? Border.all(color: theme.primaryColor, width: 2)
+                : null,
+          ),
+          child: GestureDetector(
+            onTap: () => _selectCharacter(character),
+            onLongPress: () => _showCharacterInfoPopup(context, character),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: _buildAvatarImage(
+                    character.avatarImagePath,
+                    height: 85,
+                    width: double.infinity,
+                    memCacheHeight: 200,
+                    memCacheWidth: 200,
+                    heroTag: heroTag,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    character.summary.replaceAll('\n', ' '),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                      fontSize: 11,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        character.name,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        character.summary.replaceAll('\n', ' '),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color
+                              ?.withOpacity(0.7),
+                          fontSize: 11,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -868,71 +1141,86 @@ class _CharacterScreenState extends State<CharacterScreen>
     ThemeData theme, {
     bool isSelected = false,
   }) {
-    return GestureDetector(
-      onTap: () => _selectCharacter(character),
-      onLongPress: () => _showCharacterInfoPopup(context, character),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: theme.primaryColor, width: 2)
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(8),
-            leading: SizedBox(
-              width: 56,
-              height: 56,
-              child: CircleAvatar(
-                radius: 28,
-                backgroundColor: Colors.transparent,
-                child: ClipOval(
-                  child: _buildAvatarImage(
-                    character.avatarImagePath,
-                    fit: BoxFit.cover,
-                    memCacheWidth: 112,
-                    memCacheHeight: 112,
+    return ValueListenableBuilder<AiCharacter?>(
+      valueListenable: _controller.selectedCharacter,
+      builder: (context, selectedCharacter, child) {
+        final isSelected = character.name == selectedCharacter?.name;
+        final heroTag = 'list-${character.name}';
+
+        // Process the summary to replace line breaks with spaces for better display
+        final processedSummary =
+            character.summary.replaceAll(RegExp(r'\n+'), ' ');
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeInOut,
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: isSelected
+                ? Border.all(color: theme.primaryColor, width: 2)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: GestureDetector(
+            onTap: () => _selectCharacter(character),
+            onLongPress: () => _showCharacterInfoPopup(context, character),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: ListTile(
+                contentPadding: const EdgeInsets.all(8),
+                leading: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.transparent,
+                    child: ClipOval(
+                      child: _buildAvatarImage(
+                        character.avatarImagePath,
+                        fit: BoxFit.cover,
+                        memCacheWidth: 112,
+                        memCacheHeight: 112,
+                        heroTag: heroTag,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            title: Text(
-              character.name,
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            subtitle: Container(
-              margin: const EdgeInsets.only(top: 4),
-              child: Text(
-                character.summary.replaceAll('\n', ' '),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                  height: 1.3,
+                title: Text(
+                  character.name,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+                subtitle: Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    processedSummary,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                      height: 1.3,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                trailing: isSelected
+                    ? Icon(Icons.check_circle, color: theme.primaryColor)
+                    : const Icon(Icons.chevron_right),
               ),
             ),
-            trailing: isSelected
-                ? Icon(Icons.check_circle, color: theme.primaryColor)
-                : const Icon(Icons.chevron_right),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -941,69 +1229,81 @@ class _CharacterScreenState extends State<CharacterScreen>
     ThemeData theme, {
     bool isSelected = false,
   }) {
-    return GestureDetector(
-      onTap: () => _selectCharacter(character),
-      onLongPress: () => _showCharacterInfoPopup(context, character),
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(12),
-          border: isSelected
-              ? Border.all(color: theme.primaryColor, width: 2)
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-                child: _buildAvatarImage(
-                  character.avatarImagePath,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 300,
-                  memCacheHeight: 300,
+    return ValueListenableBuilder<AiCharacter?>(
+      valueListenable: _controller.selectedCharacter,
+      builder: (context, selectedCharacter, child) {
+        final isSelected = character.name == selectedCharacter?.name;
+        final heroTag = 'grid-${character.name}';
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeInOut,
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(12),
+            border: isSelected
+                ? Border.all(color: theme.primaryColor, width: 2)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: GestureDetector(
+            onTap: () => _selectCharacter(character),
+            onLongPress: () => _showCharacterInfoPopup(context, character),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(12)),
+                    child: _buildAvatarImage(
+                      character.avatarImagePath,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 300,
+                      memCacheHeight: 300,
+                      heroTag: heroTag,
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    character.name,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        character.name,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        character.summary.replaceAll('\n', ' '),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color
+                              ?.withOpacity(0.7),
+                          height: 1.2,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    character.summary.replaceAll('\n', ' '),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                      height: 1.2,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1041,12 +1341,16 @@ class _CharacterScreenState extends State<CharacterScreen>
     bool useCircleAvatar = false,
     int? memCacheWidth,
     int? memCacheHeight,
+    String? heroTag,
   }) {
+    // Create a widget for the image
+    Widget imageWidget;
+
     // Handle network URLs
     if (imagePath.startsWith('http') ||
         imagePath.startsWith('https') ||
         imagePath.contains('avatars.charhub.io')) {
-      return CachedNetworkImage(
+      imageWidget = CachedNetworkImage(
         imageUrl: imagePath,
         width: width,
         height: height,
@@ -1083,7 +1387,7 @@ class _CharacterScreenState extends State<CharacterScreen>
 
     // Handle asset images
     else if (imagePath.startsWith('assets/')) {
-      return Image.asset(
+      imageWidget = Image.asset(
         imagePath,
         width: width,
         height: height,
@@ -1107,7 +1411,7 @@ class _CharacterScreenState extends State<CharacterScreen>
     // Handle local file paths
     else {
       try {
-        return Image.file(
+        imageWidget = Image.file(
           File(imagePath),
           width: width,
           height: height,
@@ -1129,7 +1433,7 @@ class _CharacterScreenState extends State<CharacterScreen>
       } catch (e) {
         debugPrint('Error creating file image: $e');
         // Fallback to a default avatar
-        return Image.asset(
+        imageWidget = Image.asset(
           'assets/images/ai_characters/default_avatar.png',
           width: width,
           height: height,
@@ -1137,6 +1441,16 @@ class _CharacterScreenState extends State<CharacterScreen>
         );
       }
     }
+
+    // Wrap with Hero if heroTag is provided
+    if (heroTag != null) {
+      return Hero(
+        tag: heroTag,
+        child: imageWidget,
+      );
+    }
+
+    return imageWidget;
   }
 
   void _showCharacterInfoPopup(BuildContext context, AiCharacter character) {
