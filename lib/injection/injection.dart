@@ -6,6 +6,7 @@ import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/search/presentation/blocs/search_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
 import 'package:dio/dio.dart';
+import 'package:pretty_dio_logger/pretty_dio_logger.dart';
 import 'package:read_leaf/features/library/data/storage_scanner_service.dart';
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -13,9 +14,11 @@ import 'package:read_leaf/features/library/data/book_metadata_repository.dart';
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:logger/logger.dart';
 import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/theme_bloc.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
+import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc_factory.dart';
 import 'package:read_leaf/features/companion_chat/data/rag_service.dart';
 import 'package:read_leaf/features/auth/presentation/blocs/auth_bloc.dart';
 import 'package:read_leaf/features/settings/data/sync/supabase_service.dart';
@@ -31,6 +34,7 @@ import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:read_leaf/features/characters/data/character_template_service.dart';
 import 'package:read_leaf/features/reader/data/text_selection_service.dart';
 import 'package:read_leaf/features/reader/data/epub_service.dart';
+import 'package:read_leaf/features/characters/data/public_character_repository.dart';
 
 final getIt = GetIt.instance;
 
@@ -48,9 +52,21 @@ Future<void> configureDependencies() async {
     throw Exception('Required environment variables are not set');
   }
 
+  // Register global logger
+  getIt.registerLazySingleton<Logger>(() => Logger(
+        printer: PrettyPrinter(
+          methodCount: 1,
+          errorMethodCount: 8,
+          lineLength: 80,
+          colors: true,
+          printEmojis: true,
+          printTime: true,
+        ),
+      ));
+
   // Register infrastructure services
   getIt.registerLazySingleton<Dio>(() {
-    return Dio(
+    final dio = Dio(
       BaseOptions(
         headers: {
           "user-agent":
@@ -60,6 +76,17 @@ Future<void> configureDependencies() async {
         receiveTimeout: const Duration(seconds: 30),
       ),
     );
+
+    // Add pretty logger interceptor in debug mode
+    dio.interceptors.add(PrettyDioLogger(
+      requestHeader: true,
+      requestBody: true,
+      responseBody: true,
+      responseHeader: false,
+      compact: false,
+    ));
+
+    return dio;
   });
 
   // Register Supabase service first as other services might depend on it
@@ -100,8 +127,9 @@ Future<void> configureDependencies() async {
   getIt.registerSingleton<FileRepository>(fileRepository);
   getIt.registerSingleton<BookMetadataRepository>(bookMetadataRepository);
 
-  // Replace SettingsProvider with SettingsBloc
-  getIt.registerSingleton<SettingsBloc>(SettingsBloc());
+  // Initialize and register SettingsBloc
+  final settingsBloc = await SettingsBlocFactory.create();
+  getIt.registerSingleton<SettingsBloc>(settingsBloc);
 
   // Register ThemeBloc
   getIt.registerSingleton<ThemeBloc>(ThemeBloc(userPreferencesService));
@@ -117,11 +145,14 @@ Future<void> configureDependencies() async {
   getIt.registerLazySingleton<ImageService>(() => ImageService());
   getIt.registerLazySingleton<AnnasArchieve>(
       () => AnnasArchieve(dio: getIt<Dio>()));
+  getIt.registerLazySingleton<PublicCharacterRepository>(
+      () => PublicCharacterRepository());
 
   // Initialize AI services in parallel
   final aiCharacterService = AiCharacterService();
   final chatService = ChatService(syncManager);
-  final geminiService = GeminiService(aiCharacterService, chatService);
+  final geminiService = GeminiService(
+      dotenv.env['GEMINI_API_KEY'], aiCharacterService, chatService);
   final ragService = RagService();
 
   await Future.wait([
@@ -194,8 +225,8 @@ abstract class RegisterModule {
   ChatService get chatService => ChatService(getIt<SyncManager>());
 
   @lazySingleton
-  GeminiService get geminiService =>
-      GeminiService(aiCharacterService, chatService);
+  GeminiService get geminiService => GeminiService(
+      dotenv.env['GEMINI_API_KEY'], aiCharacterService, chatService);
 
   @lazySingleton
   BookMetadataRepository get bookMetadataRepository => BookMetadataRepository();
@@ -247,4 +278,8 @@ abstract class RegisterModule {
 
   @lazySingleton
   EpubService get epubService => EpubService();
+
+  @lazySingleton
+  PublicCharacterRepository get publicCharacterRepository =>
+      PublicCharacterRepository();
 }

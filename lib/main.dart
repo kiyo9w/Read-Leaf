@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/search/presentation/blocs/search_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
@@ -16,38 +17,82 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/features/library/presentation/screens/splash_screen.dart';
 import 'injection/injection.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  runApp(
-    const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
-    ),
+  await SentryFlutter.init(
+    (options) {
+      options.dsn =
+          'https://62dbb2797507c094b5afc45b860cc032@o4509273895796736.ingest.us.sentry.io/4509273896976384';
+      // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
+      // We recommend adjusting this value in production.
+      options.tracesSampleRate = 1.0;
+      // The sampling rate for profiling is relative to tracesSampleRate
+      // Setting to 1.0 will profile 100% of sampled transactions:
+      options.profilesSampleRate = 1.0;
+    },
+    appRunner: () => runApp(SentryWidget(
+      child: const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: SplashScreen(),
+      ),
+    )),
   );
+  // TODO: Remove this line after sending the first sample event to sentry.
+  await Sentry.captureException(Exception('This is a sample exception.'));
 
   try {
     await dotenv.load(fileName: '.env');
     await _initializeSupabase();
     await configureDependencies();
     await CharacterSuggestionService.initialize();
-    runApp(const MyApp());
+    await SentryFlutter.init(
+      (options) {
+        options.dsn =
+            'https://62dbb2797507c094b5afc45b860cc032@o4509273895796736.ingest.us.sentry.io/4509273896976384';
+        // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
+        // We recommend adjusting this value in production.
+        options.tracesSampleRate = 1.0;
+        // The sampling rate for profiling is relative to tracesSampleRate
+        // Setting to 1.0 will profile 100% of sampled transactions:
+        options.profilesSampleRate = 1.0;
+      },
+      appRunner: () => runApp(SentryWidget(child: const MyApp())),
+    );
+    // TODO: Remove this line after sending the first sample event to sentry.
+    await Sentry.captureException(Exception('This is a sample exception.'));
   } catch (e) {
     print('Initialization error: $e');
-    runApp(
-      MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: Scaffold(
-          body: Center(
-            child: Text(
-              'Failed to initialize app: $e',
-              style: const TextStyle(color: Colors.red),
+    await SentryFlutter.init(
+      (options) {
+        options.dsn =
+            'https://62dbb2797507c094b5afc45b860cc032@o4509273895796736.ingest.us.sentry.io/4509273896976384';
+        // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
+        // We recommend adjusting this value in production.
+        options.tracesSampleRate = 1.0;
+        // The sampling rate for profiling is relative to tracesSampleRate
+        // Setting to 1.0 will profile 100% of sampled transactions:
+        options.profilesSampleRate = 1.0;
+      },
+      appRunner: () => runApp(SentryWidget(
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: Scaffold(
+            body: Center(
+              child: Text(
+                'Failed to initialize app: $e',
+                style: const TextStyle(color: Colors.red),
+              ),
             ),
           ),
         ),
-      ),
+      )),
     );
+    // TODO: Remove this line after sending the first sample event to sentry.
+    await Sentry.captureException(Exception('This is a sample exception.'));
   }
 }
 
@@ -102,6 +147,20 @@ class MyApp extends StatelessWidget {
             builder: (context, settingsState) {
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
+
+                // Add localization support
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                supportedLocales: const [
+                  Locale('en', ''), // English
+                  Locale('vi', ''), // Vietnamese
+                ],
+                locale: settingsState.locale,
+
                 routes: {
                   '/pdf_viewer': (context) => const PDFViewerScreen(),
                   '/epub_viewer': (context) => const EPUBViewerScreen(),
