@@ -130,86 +130,127 @@ class MarkersView extends StatelessWidget {
                 .lastOrNull;
             final shouldHighlight = marker == closestMarkerToCurrentPage;
 
-            return InkWell(
-              onTap: () {
-                onTap?.call(marker);
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                color: shouldHighlight
-                    ? (Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF2C2C2E)
-                        : const Color(0xFFF8F1F1))
-                    : Colors.transparent,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 40,
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        color: marker.color.withOpacity(0.7),
-                        borderRadius: BorderRadius.circular(2),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  onTap?.call(marker);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: shouldHighlight
+                        ? (Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.08))
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left indicator for highlighted markers
+                      Container(
+                        width: 4,
+                        height: 40,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: shouldHighlight
+                              ? Theme.of(context).colorScheme.primary
+                              : marker.color.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Page ${marker.ranges.pageNumber}',
-                                style: TextStyle(
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFF8E8E93)
-                                      : const Color(0xFF6E6E73),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: shouldHighlight
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF2C2C2E)
+                                            : const Color(0xFFF8F1F1),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'Page ${marker.ranges.pageNumber}',
+                                    style: TextStyle(
+                                      color: shouldHighlight
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .onPrimary
+                                          : Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFFAA96B6)
+                                              : const Color(0xFF6E6E73),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
                                 ),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                icon: Icon(
-                                  Icons.delete_outline,
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFF8E8E93)
-                                      : const Color(0xFF6E6E73),
-                                  size: 16,
+                                const Spacer(),
+                                Material(
+                                  color: Colors.transparent,
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () => onDeleteTap?.call(marker),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(4.0),
+                                      child: Icon(
+                                        Icons.delete_outline,
+                                        color: Theme.of(context).brightness ==
+                                                Brightness.dark
+                                            ? const Color(0xFF8E8E93)
+                                            : const Color(0xFF6E6E73),
+                                        size: 18,
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                                onPressed: () => onDeleteTap?.call(marker),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                  minWidth: 24,
-                                  minHeight: 24,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            marker.ranges.text,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Theme.of(context).brightness ==
-                                      Brightness.dark
-                                  ? const Color(0xFFF2F2F7)
-                                  : const Color(0xFF1C1C1E),
-                              fontSize: 13,
-                              height: 1.4,
+                              ],
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text(
+                              marker.ranges.text,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: shouldHighlight
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFFF2F2F7)
+                                        : const Color(0xFF1C1C1E),
+                                fontSize: 14,
+                                height: 1.4,
+                                fontWeight: shouldHighlight
+                                    ? FontWeight.w500
+                                    : FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );

@@ -56,6 +56,8 @@ class _OutlineViewState extends State<OutlineView> {
         node: node,
         level: level,
         children: _buildNodes(node.children, level + 1),
+        // Auto-expand top-level nodes
+        isExpanded: level == 0,
       );
     }).toList();
   }
@@ -95,109 +97,125 @@ class _OutlineViewState extends State<OutlineView> {
           }
         }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              color: shouldHighlight
-                  ? (Theme.of(context).brightness == Brightness.dark
-                      ? const Color(0xFF2C2C2E)
-                      : const Color(0xFFF8F1F1))
-                  : Colors.transparent,
-              child: Row(
-                children: [
-                  if (hasChildren)
-                    InkWell(
-                      onTap: () {
-                        setState(() {
-                          node.isExpanded = !node.isExpanded;
-                        });
-                      },
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        alignment: Alignment.center,
-                        child: Icon(
-                          node.isExpanded
-                              ? Icons.keyboard_arrow_down
-                              : Icons.keyboard_arrow_right,
-                          size: 16,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF8E8E93)
-                              : const Color(0xFF6E6E73),
+        // Calculate left padding based on level for proper indentation
+        double leftPadding = node.level * 16.0;
+
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              widget.controller.goToDest(node.node.dest);
+              if (node.node.dest?.pageNumber != null) {
+                context
+                    .read<ReaderBloc>()
+                    .add(JumpToPage(node.node.dest!.pageNumber));
+                context.read<ReaderBloc>().add(ToggleSideNav());
+              }
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: shouldHighlight
+                    ? (Theme.of(context).colorScheme.primary.withOpacity(0.08))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(leftPadding, 12, 16, 12),
+                child: Row(
+                  children: [
+                    // Expand/collapse icon for nodes with children
+                    if (hasChildren)
+                      InkWell(
+                        onTap: () {
+                          setState(() {
+                            node.isExpanded = !node.isExpanded;
+                          });
+                        },
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          alignment: Alignment.center,
+                          child: Icon(
+                            node.isExpanded
+                                ? Icons.keyboard_arrow_down
+                                : Icons.keyboard_arrow_right,
+                            size: 18,
+                            color:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? const Color(0xFF8E8E93)
+                                    : const Color(0xFF6E6E73),
+                          ),
                         ),
-                      ),
-                    )
-                  else
-                    const SizedBox(width: 32),
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        widget.controller.goToDest(node.node.dest);
-                        if (node.node.dest?.pageNumber != null) {
-                          context
-                              .read<ReaderBloc>()
-                              .add(JumpToPage(node.node.dest!.pageNumber));
-                          context.read<ReaderBloc>().add(ToggleSideNav());
-                        }
-                      },
-                      child: Container(
-                        padding: EdgeInsets.only(
-                          right: 16,
-                          top: 6,
-                          bottom: 6,
+                      )
+                    else
+                      const SizedBox(width: 32),
+
+                    // Left indicator for highlighted chapter
+                    if (shouldHighlight)
+                      Container(
+                        width: 4,
+                        height: 24,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                node.node.title,
-                                style: TextStyle(
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFFF2F2F7)
-                                      : const Color(0xFF1C1C1E),
-                                  fontSize: isTopLevel ? 14 : 13,
-                                  fontWeight: isTopLevel
-                                      ? FontWeight.w500
-                                      : FontWeight.w400,
-                                  height: 1.3,
-                                ),
-                              ),
-                            ),
-                            if (node.node.dest?.pageNumber != null)
-                              Text(
-                                '${node.node.dest!.pageNumber}',
-                                style: TextStyle(
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? const Color(0xFF8E8E93)
-                                      : const Color(0xFF6E6E73),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                          ],
+                      )
+                    else
+                      const SizedBox(width: 16),
+
+                    // Chapter title
+                    Expanded(
+                      child: Text(
+                        node.node.title,
+                        style: TextStyle(
+                          color: shouldHighlight
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFFF2F2F7)
+                                  : const Color(0xFF1C1C1E),
+                          fontSize: isTopLevel ? 15 : 14,
+                          fontWeight: shouldHighlight || isTopLevel
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          height: 1.3,
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            if (node.isExpanded && hasChildren)
-              Padding(
-                padding: const EdgeInsets.only(left: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    for (var i = 0; i < node.children.length; i++)
-                      _buildNode(
-                          node.children[i], i == node.children.length - 1),
+
+                    // Page number
+                    if (node.node.dest?.pageNumber != null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: shouldHighlight
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFF2C2C2E)
+                                  : const Color(0xFFF8F1F1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${node.node.dest!.pageNumber}',
+                          style: TextStyle(
+                            color: shouldHighlight
+                                ? Theme.of(context).colorScheme.onPrimary
+                                : Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? const Color(0xFFAA96B6)
+                                    : const Color(0xFF6E6E73),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-          ],
+            ),
+          ),
         );
       },
     );
@@ -209,6 +227,37 @@ class _OutlineViewState extends State<OutlineView> {
       result.addAll(_flattenNodes(child));
     }
     return result;
+  }
+
+  Widget _buildNodeTree() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _nodes.length,
+      itemBuilder: (context, index) {
+        final node = _nodes[index];
+        final isLastNode = index == _nodes.length - 1;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildNode(node, isLastNode),
+            if (node.isExpanded && node.children.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: node.children
+                      .asMap()
+                      .entries
+                      .map((entry) => _buildNode(
+                          entry.value, entry.key == node.children.length - 1))
+                      .toList(),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -251,12 +300,6 @@ class _OutlineViewState extends State<OutlineView> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        for (var i = 0; i < _nodes.length; i++)
-          _buildNode(_nodes[i], i == _nodes.length - 1),
-      ],
-    );
+    return _buildNodeTree();
   }
 }

@@ -15,81 +15,140 @@ class ThumbnailsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.grey.shade800,
-      child: documentRef == null
-          ? const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading pages...',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
+    if (documentRef == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(
+                Theme.of(context).colorScheme.primary,
               ),
-            )
-          : PdfDocumentViewBuilder(
-              documentRef: documentRef!,
-              builder: (context, document) => ListView.builder(
-                itemCount: document?.pages.length ?? 0,
-                itemBuilder: (context, index) {
-                  final pageNumber = index + 1;
-                  return Container(
-                    margin: const EdgeInsets.all(8),
-                    height: 240,
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () {
-                              // Update both controller and bloc
-                              controller.goToPage(
-                                pageNumber: pageNumber,
-                                anchor: PdfPageAnchor.top,
-                              );
-                              context
-                                  .read<ReaderBloc>()
-                                  .add(JumpToPage(pageNumber));
-                              // Close the side nav after jumping to the page
-                              context.read<ReaderBloc>().add(ToggleSideNav());
-                            },
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade700,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: Colors.grey.shade600,
-                                  width: 1,
-                                ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Loading pages...',
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white70
+                    : Colors.black54,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return PdfDocumentViewBuilder(
+      documentRef: documentRef!,
+      builder: (context, document) {
+        if (document == null || document.pages.isEmpty) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        return BlocBuilder<ReaderBloc, ReaderState>(
+          builder: (context, state) {
+            final currentPage = state is ReaderLoaded ? state.currentPage : 1;
+
+            return GridView.builder(
+              padding: const EdgeInsets.all(16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                childAspectRatio: 0.7,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 16,
+              ),
+              itemCount: document.pages.length,
+              itemBuilder: (context, index) {
+                final pageNumber = index + 1;
+                final isCurrentPage = pageNumber == currentPage;
+
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      // Update both controller and bloc
+                      controller.goToPage(
+                        pageNumber: pageNumber,
+                        anchor: PdfPageAnchor.top,
+                      );
+                      context.read<ReaderBloc>().add(JumpToPage(pageNumber));
+                      // Close the side nav after jumping to the page
+                      context.read<ReaderBloc>().add(ToggleSideNav());
+                    },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: isCurrentPage
+                            ? Border.all(
+                                color: Theme.of(context).colorScheme.primary,
+                                width: 2.5,
+                              )
+                            : Border.all(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade300,
+                                width: 1,
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: PdfPageView(
-                                  document: document,
-                                  pageNumber: pageNumber,
-                                  alignment: Alignment.center,
-                                ),
+                        boxShadow: isCurrentPage
+                            ? [
+                                BoxShadow(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withOpacity(0.3),
+                                  blurRadius: 8,
+                                  spreadRadius: 1,
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.only(
+                                topLeft: Radius.circular(12),
+                                topRight: Radius.circular(12),
+                              ),
+                              child: PdfPageView(
+                                document: document,
+                                pageNumber: pageNumber,
+                                alignment: Alignment.center,
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Page $pageNumber',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
+                          Padding(
+                            padding: const EdgeInsets.all(8.0),
+                            child: Text(
+                              'Page $pageNumber',
+                              style: TextStyle(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.white70
+                                    : Colors.black87,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class Marker {
   final Color color;
@@ -85,7 +86,7 @@ class MarkersView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'No highlights or notes',
+              S.of(context).noHighlightsOrNotes,
               style: TextStyle(
                 color: Theme.of(context).brightness == Brightness.dark
                     ? const Color(0xFFF2F2F7)
@@ -96,7 +97,7 @@ class MarkersView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Select text and tap the highlight button to add',
+              S.of(context).selectTextToHighlight,
               style: TextStyle(
                 color: Theme.of(context).brightness == Brightness.dark
                     ? const Color(0xFF8E8E93)
@@ -163,7 +164,9 @@ class MarkersView extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                'Page ${marker.ranges.pageNumber}',
+                                S
+                                    .of(context)
+                                    .pageNumber(marker.ranges.pageNumber),
                                 style: TextStyle(
                                   color: Theme.of(context).brightness ==
                                           Brightness.dark
