@@ -1,0 +1,456 @@
+{
+  "@@locale": "en",
+  "appName": "Read Leaf",
+  "@appName": {
+    "description": "The name of the app"
+  },
+  "loading": "Loading...",
+  "ok": "OK",
+  "@ok": {
+    "description": "OK button text"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel button text"
+  },
+  "error": "Error",
+  "@error": {
+    "description": "Error title"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Retry button text"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings tab title"
+  },
+  "darkMode": "Dark Mode",
+  "@darkMode": {
+    "description": "Dark mode setting title"
+  },
+  "lightMode": "Light Mode",
+  "systemMode": "System Mode",
+  "language": "Language",
+  "@language": {
+    "description": "Language setting title"
+  },
+  "theme": "Theme",
+  "login": "Login",
+  "logout": "Logout",
+  "@logout": {
+    "description": "Logout button text"
+  },
+  "signUp": "Sign Up",
+  "@signUp": {
+    "description": "Sign up button text"
+  },
+  "email": "Email",
+  "password": "Password",
+  "@password": {
+    "description": "Password label"
+  },
+  "forgotPassword": "Forgot Password?",
+  "@forgotPassword": {
+    "description": "Forgot password link text"
+  },
+  "search": "Search",
+  "library": "Library",
+  "@library": {
+    "description": "Library tab title"
+  },
+  "myBooks": "My Books",
+  "recentBooks": "Recent Books",
+  "favorites": "Favorites",
+  "@favorites": {
+    "description": "Favorites section title"
+  },
+  "characters": "Characters",
+  "chat": "Chat",
+  "reader": "Reader",
+  "noBooks": "No books found",
+  "addBook": "Add Book",
+  "deleteBook": "Delete Book",
+  "shareBook": "Share Book",
+  "@shareBook": {
+    "description": "Share book button text"
+  },
+  "bookDetails": "Book Details",
+  "author": "Author",
+  "@author": {
+    "description": "Author label"
+  },
+  "publisher": "Publisher",
+  "@publisher": {
+    "description": "Publisher label"
+  },
+  "published": "Published",
+  "pages": "Pages",
+  "chapterCount": "Chapters",
+  "fileSize": "File Size",
+  "fileType": "File Type",
+  "importBook": "Import Book",
+  "exportBook": "Export Book",
+  "syncSettings": "Sync Settings",
+  "enableSync": "Enable Sync",
+  "syncFrequency": "Sync Frequency",
+  "backup": "Backup",
+  "restore": "Restore",
+  "aboutApp": "About App",
+  "@aboutApp": {
+    "description": "About app section title"
+  },
+  "version": "Version",
+  "@version": {
+    "description": "App version label"
+  },
+  "termsOfService": "Terms of Service",
+  "privacyPolicy": "Privacy Policy",
+  "licenses": "Licenses",
+  "feedback": "Send Feedback",
+  "@sendFeedback": {
+    "description": "Send feedback button text"
+  },
+  "rateApp": "Rate App",
+  "@rateApp": {
+    "description": "Rate app button text"
+  },
+  "shareApp": "Share App",
+  "developerOptions": "Developer Options",
+  "debugMode": "Debug Mode",
+  "tableOfContents": "Table of Contents",
+  "@tableOfContents": {
+    "description": "Table of contents title"
+  },
+  "highlightsAndNotes": "Highlights and Notes",
+  "thumbnails": "Thumbnails",
+  "explainTextAndAskQuestion": "Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.",
+  "failedToGetAIResponse": "Failed to get AI response",
+  "highlight": "Highlight",
+  "audio": "Audio",
+  "chapters": "Chapters",
+  "bookmarks": "Bookmarks",
+  "@bookmarks": {
+    "description": "Bookmarks section title"
+  },
+  "fileDeleted": "File deleted",
+  "@fileDeleted": {
+    "description": "Message shown when a file is deleted"
+  },
+  "leafyReader": "Leafy reader",
+  "lastRead": "Last read",
+  "yourBooks": "Your books",
+  "bookOfTheDay": "Book of the day",
+  "result": "Result",
+  "resultsFor": "Results for {query}",
+  "@resultsFor": {
+    "description": "Results for search query label"
+  },
+  "failedToGetDownloadLink": "Failed to get download link",
+  "noResultsFound": "No Results Found!",
+  "@noResultsFound": {
+    "description": "Message shown when no search results are found"
+  },
+  "noContent": "No content",
+  "downloading": "Downloading...",
+  "notAuthenticated": "Not authenticated",
+  "failedToUploadProfilePicture": "Failed to upload profile picture",
+  "profileUpdatedSuccessfully": "Profile updated successfully",
+  "passwordResetEmailSent": "Password reset email sent",
+  "@passwordResetEmailSent": {
+    "description": "Password reset email sent confirmation"
+  },
+  "deleteAccount": "Delete Account",
+  "deleteAccountConfirmation": "Are you sure you want to delete your account? This action cannot be undone.",
+  "delete": "Delete",
+  "@delete": {
+    "description": "Delete button text"
+  },
+  "accountDeletedSuccessfully": "Account deleted successfully",
+  "profile": "Profile",
+  "@profile": {
+    "description": "Profile tab title"
+  },
+  "username": "Username",
+  "@username": {
+    "description": "Username label"
+  },
+  "pleaseEnterUsername": "Please enter a username",
+  "saveChanges": "Save Changes",
+  "resetPassword": "Reset Password",
+  "@resetPassword": {
+    "description": "Reset password button text"
+  },
+  "signOut": "Sign Out",
+  "couldNotLaunch": "Could not launch {url}",
+  "checkOutThisApp": "Check out this amazing ebook reader app!",
+  "@checkOutThisApp": {
+    "description": "Share app message"
+  },
+  "signInSignUp": "Sign In / Sign Up",
+  "@signInSignUp": {
+    "description": "Sign in/sign up button text"
+  },
+  "syncReadingProgress": "Sync your reading progress and preferences",
+  "@syncReadingProgress": {
+    "description": "Sync reading progress description"
+  },
+  "openFavorites": "Open favorites",
+  "@openFavorites": {
+    "description": "Open favorites button text"
+  },
+  "markAsFavorite": "Mark as favorite",
+  "@markAsFavorite": {
+    "description": "Mark as favorite button text"
+  },
+  "unmarkAsFavorite": "Remove from favorites",
+  "@unmarkAsFavorite": {
+    "description": "Unmark as favorite button text"
+  },
+  "pressBackAgainToExit": "Press back again to exit",
+  "@pressBackAgainToExit": {
+    "description": "Message shown when user presses back button"
+  },
+  "syncingItemsCount": "Syncing {count} items...",
+  "@syncingItemsCount": {
+    "description": "Text shown when syncing items",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+  "offline": "Offline",
+  "@offline": {
+    "description": "Offline status text"
+  },
+  "isThinking": "is thinking",
+  "@isThinking": {
+    "description": "Used when a character is thinking/typing"
+  },
+  "noHighlightsOrNotes": "No highlights or notes",
+  "@noHighlightsOrNotes": {
+    "description": "Message shown when there are no highlights or notes"
+  },
+  "selectTextToHighlight": "Select text and tap the highlight button to add",
+  "@selectTextToHighlight": {
+    "description": "Instructions for adding highlights"
+  },
+  "pageNumber": "Page {number}",
+  "@pageNumber": {
+    "description": "Page number label",
+    "placeholders": {
+      "number": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+  "unknownAuthor": "Unknown Author",
+  "@unknownAuthor": {
+    "description": "Text shown when author is unknown"
+  },
+  "pdf": "PDF",
+  "@pdf": {
+    "description": "PDF file format"
+  },
+  "markAsCompleted": "Mark as completed",
+  "@markAsCompleted": {
+    "description": "Label for marking a book as completed"
+  },
+  "star": "Star",
+  "@star": {
+    "description": "Label for starring a book"
+  },
+  "chooseCharacter": "Choose Character",
+  "@chooseCharacter": {
+    "description": "Title for the character selection screen"
+  },
+  "voices": "Voices",
+  "@voices": {
+    "description": "Title for the voices selection screen"
+  },
+  "create": "Create",
+  "@create": {
+    "description": "Create button label"
+  },
+  "import": "Import",
+  "@import": {
+    "description": "Import button label"
+  },
+  "voice": "Voice",
+  "@voice": {
+    "description": "Voice button label"
+  },
+  "seeAll": "See All",
+  "@seeAll": {
+    "description": "See all button text"
+  },
+  "featuredCharacters": "Featured Characters",
+  "@featuredCharacters": {
+    "description": "Section title for featured characters"
+  },
+  "trending": "Trending",
+  "@trending": {
+    "description": "Section title for trending characters"
+  },
+  "allCharacters": "All Characters",
+  "@allCharacters": {
+    "description": "Section title for all characters"
+  },
+  "recentCharacters": "Recent Characters",
+  "@recentCharacters": {
+    "description": "Section title for recent characters"
+  },
+  "noFeaturedCharacters": "No featured characters available",
+  "@noFeaturedCharacters": {
+    "description": "Text shown when no featured characters are available"
+  },
+  "noTrendingCharacters": "No trending characters available",
+  "@noTrendingCharacters": {
+    "description": "Text shown when no trending characters are available"
+  },
+  "noCharactersInCategory": "No characters found in this category",
+  "@noCharactersInCategory": {
+    "description": "Text shown when no characters are found in a category"
+  },
+  "noRecentCharacters": "No recent characters in this category",
+  "@noRecentCharacters": {
+    "description": "Text shown when no recent characters are available"
+  },
+  "showMore": "Show More ({count})",
+  "@showMore": {
+    "description": "Button to show more items with a count",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "example": "5"
+      }
+    }
+  },
+  "showLess": "Show Less",
+  "@showLess": {
+    "description": "Button to show fewer items"
+  },
+  "unnamedCharacter": "Unnamed Character",
+  "@unnamedCharacter": {
+    "description": "Default name for a character without a name"
+  },
+  "myLibrary": "My Library",
+  "@myLibrary": {
+    "description": "Title for the library screen"
+  },
+  "starredBooks": "Starred Books",
+  "@starredBooks": {
+    "description": "Section title for starred books"
+  },
+  "haveRead": "Have Read",
+  "@haveRead": {
+    "description": "Section title for books the user has read"
+  },
+  "localStorage": "Local Storage",
+  "@localStorage": {
+    "description": "Section title for books stored locally"
+  },
+  "selectLanguage": "Select Language",
+  "@selectLanguage": {
+    "description": "Title for language selection dialog"
+  },
+  "selectTheme": "Select Theme",
+  "@selectTheme": {
+    "description": "Title for theme selection dialog"
+  },
+  "followDeviceSetting": "Follow Device Setting",
+  "@followDeviceSetting": {
+    "description": "Text for system theme setting option"
+  },
+  "automaticallySwitchTheme": "Automatically switch between light and dark theme",
+  "@automaticallySwitchTheme": {
+    "description": "Description for system theme setting"
+  },
+  "defaultThemes": "Default Themes",
+  "@defaultThemes": {
+    "description": "Section title for default themes"
+  },
+  "lightThemes": "Light Themes",
+  "@lightThemes": {
+    "description": "Section title for light themes"
+  },
+  "darkThemes": "Dark Themes",
+  "@darkThemes": {
+    "description": "Section title for dark themes"
+  },
+  "loadingScreen": "Loading Screen",
+  "@loadingScreen": {
+    "description": "Title for loading screen setting"
+  },
+  "showBookLoadingScreen": "Show book loading transition screen",
+  "@showBookLoadingScreen": {
+    "description": "Description for loading screen setting"
+  },
+  "readingReminders": "Reading Reminders",
+  "@readingReminders": {
+    "description": "Title for reading reminders setting"
+  },
+  "getEncouragedToContinueReading": "Get encouraged to continue reading",
+  "@getEncouragedToContinueReading": {
+    "description": "Description for reading reminders setting"
+  },
+  "aiModel": "AI Model",
+  "@aiModel": {
+    "description": "Title for AI model setting"
+  },
+  "selectAiModel": "Select AI Model",
+  "@selectAiModel": {
+    "description": "Title for AI model selection dialog"
+  },
+  "account": "Account",
+  "@account": {
+    "description": "Section title for account settings"
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Section title for appearance settings"
+  },
+  "reading": "Reading",
+  "@reading": {
+    "description": "Section title for reading settings"
+  },
+  "about": "About",
+  "@about": {
+    "description": "Section title for about settings"
+  },
+  "buyMeACoffee": "Buy me a coffee",
+  "@buyMeACoffee": {
+    "description": "Title for donation option"
+  },
+  "supportTheDeveloper": "Support the developer",
+  "@supportTheDeveloper": {
+    "description": "Description for donation option"
+  },
+  "supportOpenSource": "Support this open source project",
+  "@supportOpenSource": {
+    "description": "Title for open source support option"
+  },
+  "contributeOnGitHub": "Contribute on GitHub",
+  "@contributeOnGitHub": {
+    "description": "Description for open source support option"
+  },
+  "shareWithFriends": "Share this app with friends",
+  "@shareWithFriends": {
+    "description": "Title for share app option"
+  },
+  "spreadTheWord": "Spread the word",
+  "@spreadTheWord": {
+    "description": "Description for share app option"
+  },
+  "errorLoadingBookOfDay": "Error loading book of the day",
+  "@errorLoadingBookOfDay": {
+    "description": "Error message when book of the day fails to load"
+  },
+  "errorGeneratingAiMessage": "Error generating AI message",
+  "@errorGeneratingAiMessage": {
+    "description": "Error message when AI message generation fails"
+  }
+} 
