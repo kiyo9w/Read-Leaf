@@ -17,82 +17,54 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/features/library/presentation/screens/splash_screen.dart';
 import 'injection/injection.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
-import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:read_leaf/generated/l10n.dart';
+import 'package:flutter/foundation.dart';
+import 'package:read_leaf/widgets/offline_state_widget.dart';
+import 'package:read_leaf/core/services/connectivity_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await SentryFlutter.init(
-    (options) {
-      options.dsn =
-          'https://62dbb2797507c094b5afc45b860cc032@o4509273895796736.ingest.us.sentry.io/4509273896976384';
-      // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
-      // We recommend adjusting this value in production.
-      options.tracesSampleRate = 1.0;
-      // The sampling rate for profiling is relative to tracesSampleRate
-      // Setting to 1.0 will profile 100% of sampled transactions:
-      options.profilesSampleRate = 1.0;
-    },
-    appRunner: () => runApp(SentryWidget(
-      child: const MaterialApp(
-        debugShowCheckedModeBanner: false,
-        home: SplashScreen(),
-      ),
-    )),
+  runApp(
+    const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: SplashScreen(),
+    ),
   );
-  // TODO: Remove this line after sending the first sample event to sentry.
-  await Sentry.captureException(Exception('This is a sample exception.'));
 
   try {
     await dotenv.load(fileName: '.env');
     await _initializeSupabase();
     await configureDependencies();
+
+    // Explicitly initialize connectivity service - make sure it's created and running
+    final connectivityService = getIt<ConnectivityService>();
+    print(
+        'Main: Connectivity service status: ${connectivityService.status.value}');
+
+    // Force a connectivity check to ensure initial status is correct
+    await connectivityService.checkConnectivity();
+    print(
+        'Main: After manual connectivity check: ${connectivityService.status.value}');
+
     await CharacterSuggestionService.initialize();
-    await SentryFlutter.init(
-      (options) {
-        options.dsn =
-            'https://62dbb2797507c094b5afc45b860cc032@o4509273895796736.ingest.us.sentry.io/4509273896976384';
-        // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
-        // We recommend adjusting this value in production.
-        options.tracesSampleRate = 1.0;
-        // The sampling rate for profiling is relative to tracesSampleRate
-        // Setting to 1.0 will profile 100% of sampled transactions:
-        options.profilesSampleRate = 1.0;
-      },
-      appRunner: () => runApp(SentryWidget(child: const MyApp())),
-    );
-    // TODO: Remove this line after sending the first sample event to sentry.
-    await Sentry.captureException(Exception('This is a sample exception.'));
+
+    runApp(const MyApp());
   } catch (e) {
     print('Initialization error: $e');
-    await SentryFlutter.init(
-      (options) {
-        options.dsn =
-            'https://62dbb2797507c094b5afc45b860cc032@o4509273895796736.ingest.us.sentry.io/4509273896976384';
-        // Set tracesSampleRate to 1.0 to capture 100% of transactions for tracing.
-        // We recommend adjusting this value in production.
-        options.tracesSampleRate = 1.0;
-        // The sampling rate for profiling is relative to tracesSampleRate
-        // Setting to 1.0 will profile 100% of sampled transactions:
-        options.profilesSampleRate = 1.0;
-      },
-      appRunner: () => runApp(SentryWidget(
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: Scaffold(
-            body: Center(
-              child: Text(
-                'Failed to initialize app: $e',
-                style: const TextStyle(color: Colors.red),
-              ),
+    runApp(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Text(
+              'Failed to initialize app: $e',
+              style: const TextStyle(color: Colors.red),
             ),
           ),
         ),
-      )),
+      ),
     );
-    // TODO: Remove this line after sending the first sample event to sentry.
-    await Sentry.captureException(Exception('This is a sample exception.'));
   }
 }
 

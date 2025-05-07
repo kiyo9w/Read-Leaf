@@ -35,6 +35,7 @@ import 'package:read_leaf/features/characters/data/character_template_service.da
 import 'package:read_leaf/features/reader/data/text_selection_service.dart';
 import 'package:read_leaf/features/reader/data/epub_service.dart';
 import 'package:read_leaf/features/characters/data/public_character_repository.dart';
+import 'package:read_leaf/core/services/connectivity_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -63,6 +64,11 @@ Future<void> configureDependencies() async {
           printTime: true,
         ),
       ));
+
+  // Register connectivity service as a singleton (not lazy)
+  final connectivityService = ConnectivityService();
+  getIt.registerSingleton<ConnectivityService>(connectivityService);
+  print('Injection: Registered ConnectivityService as singleton');
 
   // Register infrastructure services
   getIt.registerLazySingleton<Dio>(() {

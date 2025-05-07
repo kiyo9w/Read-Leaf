@@ -21,6 +21,8 @@ import 'package:read_leaf/features/characters/data/ai_character_service.dart'
 import 'package:read_leaf/features/characters/data/character_template_service.dart'
     as _i710;
 import 'package:read_leaf/features/characters/data/image_service.dart' as _i111;
+import 'package:read_leaf/features/characters/data/public_character_repository.dart'
+    as _i1028;
 import 'package:read_leaf/features/companion_chat/data/chat_service.dart'
     as _i57;
 import 'package:read_leaf/features/companion_chat/data/gemini_service.dart'
@@ -36,6 +38,7 @@ import 'package:read_leaf/features/library/data/thumbnail_service.dart'
     as _i938;
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart'
     as _i64;
+import 'package:read_leaf/features/reader/data/epub_service.dart' as _i831;
 import 'package:read_leaf/features/reader/data/text_selection_service.dart'
     as _i401;
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart'
@@ -93,6 +96,9 @@ extension GetItInjectableX on _i174.GetIt {
         () => registerModule.characterTemplateService);
     gh.lazySingleton<_i401.TextSelectionService>(
         () => registerModule.textSelectionService);
+    gh.lazySingleton<_i831.EpubService>(() => registerModule.epubService);
+    gh.lazySingleton<_i1028.PublicCharacterRepository>(
+        () => registerModule.publicCharacterRepository);
     gh.factory<_i998.SyncManager>(
         () => _i998.SyncManager(gh<_i454.SupabaseClient>()));
     gh.lazySingleton<_i402.UserPreferencesService>(
