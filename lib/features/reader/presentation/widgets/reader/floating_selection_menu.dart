@@ -555,7 +555,14 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
       ),
       bottomRow: [
         _buildTextButton(
-          label: 'English (US)',
+          label: 'Vietnamese',
+          onTap: () => widget.onMenuSelected(
+            SelectionMenuType.translate,
+            selectionText,
+          ),
+        ),
+        _buildTextButton(
+          label: 'English',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
             selectionText,
@@ -563,13 +570,6 @@ class _FloatingSelectionMenuState extends State<FloatingSelectionMenu> {
         ),
         _buildTextButton(
           label: 'Spanish',
-          onTap: () => widget.onMenuSelected(
-            SelectionMenuType.translate,
-            selectionText,
-          ),
-        ),
-        _buildTextButton(
-          label: 'Vietnamese',
           onTap: () => widget.onMenuSelected(
             SelectionMenuType.translate,
             selectionText,

@@ -7,6 +7,8 @@ import 'package:read_leaf/features/companion_chat/presentation/widgets/floating_
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
 import 'package:path/path.dart' as path;
+import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
+import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
 
 class FullSelectionMenu extends StatefulWidget {
   final String selectedText;
@@ -54,8 +56,8 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
   void _setupInitialContent() {
     switch (widget.menuType) {
       case SelectionMenuType.translate:
-        _customInstructionsController.text = 'Translate to Spanish';
-        _selectedOption = 'Spanish';
+        _customInstructionsController.text = 'Translate to Vietnamese';
+        _selectedOption = 'Vietnamese';
         break;
       case SelectionMenuType.dictionary:
         _customInstructionsController.text = 'Define this word';
@@ -185,11 +187,11 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                                     color:
                                         isDark ? Colors.white : Colors.black87,
                                   ),
-                    ),
-                  ],
-                ),
+                                ),
+                              ],
+                            ),
                             Row(
-                  children: [
+                              children: [
                                 IconButton(
                                   icon: Icon(
                                     _isExpanded
@@ -200,10 +202,10 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                                         : Colors.grey[600],
                                   ),
                                   onPressed: () {
-                        setState(() {
-                          _isExpanded = !_isExpanded;
-                        });
-                      },
+                                    setState(() {
+                                      _isExpanded = !_isExpanded;
+                                    });
+                                  },
                                 ),
                                 IconButton(
                                   icon: Icon(
@@ -262,7 +264,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                                               : Colors.grey[200]!,
                                         ),
                                       ),
-                        padding: const EdgeInsets.all(16),
+                                      padding: const EdgeInsets.all(16),
                                       width: double.infinity,
                                       child: SelectableText(
                                         widget.selectedText,
@@ -490,7 +492,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
                 : Colors.grey[100],
             borderRadius: BorderRadius.circular(4),
           ),
-            child: Text(
+          child: Text(
             '$currentPage/$totalPages',
             style: TextStyle(
               color: isDark ? Colors.grey[400] : Colors.grey[600],
@@ -522,7 +524,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
   String _getInstructionsHint() {
     switch (widget.menuType) {
       case SelectionMenuType.translate:
-        return 'Example: Translate to Spanish\nOr: Translate to French and explain idioms';
+        return 'Example: Translate to Vietnamese\nOr: Translate to English and explain idioms';
       case SelectionMenuType.dictionary:
         return 'Example: Show advanced definitions\nOr: Include etymology';
       case SelectionMenuType.wikipedia:
@@ -560,6 +562,15 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
       spacing: 8,
       runSpacing: 8,
       children: [
+        _buildOptionChip('Vietnamese', isDark, _selectedOption == 'Vietnamese',
+            (value) {
+          setState(() {
+            _selectedOption = value ? 'Vietnamese' : null;
+            if (value) {
+              _customInstructionsController.text = 'Translate to Vietnamese';
+            }
+          });
+        }),
         _buildOptionChip('English', isDark, _selectedOption == 'English',
             (value) {
           setState(() {
@@ -584,15 +595,6 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
             _selectedOption = value ? 'French' : null;
             if (value) {
               _customInstructionsController.text = 'Translate to French';
-            }
-          });
-        }),
-        _buildOptionChip('German', isDark, _selectedOption == 'German',
-            (value) {
-          setState(() {
-            _selectedOption = value ? 'German' : null;
-            if (value) {
-              _customInstructionsController.text = 'Translate to German';
             }
           });
         }),
@@ -917,6 +919,9 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
     final customInstructions = _customInstructionsController.text.trim();
     final bookContext = _getBookContext();
 
+    // Store a reference to the character before closing the dialog
+    final chatWidgetInstance = chatKey?.currentWidget as FloatingChatWidget?;
+
     // Close dialog and THEN handle the async operations
     if (widget.onDismiss != null) {
       widget.onDismiss!();
@@ -924,8 +929,6 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
 
     // Use microtask to ensure this runs after the dialog is fully dismissed
     Future.microtask(() async {
-      if (chatKey?.currentState == null) return;
-
       try {
         // Format query with selected text visually distinct
         final query = _formatUserPrompt(
@@ -935,9 +938,23 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
           selectedOption: _selectedOption,
         );
 
-        // Show chat and add user message
-        chatKey!.currentState!.showChat();
-        chatKey.currentState!.addUserMessage(query);
+        // First attempt to show chat and add user message through the widget key
+        if (chatKey?.currentState != null) {
+          chatKey!.currentState!.showChat();
+          chatKey.currentState!.addUserMessage(query);
+        } else if (chatWidgetInstance != null) {
+          // Chat might be closed, add message directly to chat service
+          final chatService = GetIt.I<ChatService>();
+          final userMessage = ChatMessage(
+            text: query,
+            isUser: true,
+            timestamp: DateTime.now(),
+            characterName: chatWidgetInstance.character.name,
+            bookId: chatWidgetInstance.bookId,
+            avatarImagePath: chatWidgetInstance.character.avatarImagePath,
+          );
+          await chatService.addMessage(userMessage);
+        }
 
         // Use unified TextSelectionService to handle the operation
         final textSelectionService = GetIt.I<TextSelectionService>();
@@ -951,16 +968,36 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
           totalPages: bookContext.totalPages,
         );
 
-        // Format and show response if chat is still available
-        if (chatKey.currentState != null) {
-          final responseMessage = _formatResponseMessage(result, menuType);
-          chatKey.currentState!.addAiResponse(responseMessage);
+        // Format the response message
+        final responseMessage = _formatResponseMessage(result, menuType);
+
+        // Try to show response if chat is available
+        if (chatKey?.currentState != null) {
+          chatKey!.currentState!.addAiResponse(responseMessage);
+        } else {
+          // Chat widget may have been closed, but response is already saved by TextSelectionService -> GeminiService
+          print(
+              'Chat widget not visible, but message was saved by GeminiService for later viewing');
         }
       } catch (e) {
         print('Error in ${menuType.name} operation: $e');
-        if (chatKey!.currentState != null) {
-          chatKey.currentState!.addAiResponse(
+        // Try to show error if chat is still available
+        if (chatKey?.currentState != null) {
+          chatKey!.currentState!.addAiResponse(
               "**Error**\n\nI couldn't complete the operation. Please try again.");
+        } else if (chatWidgetInstance != null) {
+          // For errors, we need to manually save since GeminiService won't have done it
+          final chatService = GetIt.I<ChatService>();
+          final errorMessage = ChatMessage(
+            text:
+                "**Error**\n\nI couldn't complete the operation. Please try again.",
+            isUser: false,
+            timestamp: DateTime.now(),
+            characterName: chatWidgetInstance.character.name,
+            bookId: chatWidgetInstance.bookId,
+            avatarImagePath: chatWidgetInstance.character.avatarImagePath,
+          );
+          await chatService.addMessage(errorMessage);
         }
       }
     });
@@ -987,7 +1024,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
         break;
 
       case SelectionMenuType.translate:
-        final language = selectedOption ?? 'Spanish';
+        final language = selectedOption ?? 'Vietnamese';
         buffer.write('Translate to $language');
         break;
 
@@ -1025,7 +1062,7 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
         return result['response'] as String;
 
       case SelectionMenuType.translate:
-        final language = _selectedOption ?? 'Spanish';
+        final language = _selectedOption ?? 'Vietnamese';
         return "**Translation to $language**\n\n${result['translation']}";
 
       case SelectionMenuType.dictionary:
@@ -1088,6 +1125,20 @@ class _FullSelectionMenuState extends State<FullSelectionMenu> {
   }
 
   Future<void> _handleTranslate() async {
+    // Ensure we have a selected language
+    if (_selectedOption == null) {
+      setState(() {
+        _selectedOption =
+            'Vietnamese'; // Default to Vietnamese if nothing selected
+        _customInstructionsController.text = 'Translate to Vietnamese';
+      });
+    }
+
+    // Update the instructions if they don't match the selected language
+    if (!_customInstructionsController.text.contains(_selectedOption!)) {
+      _customInstructionsController.text = 'Translate to $_selectedOption';
+    }
+
     await _executeTextSelectionOperation();
   }
 

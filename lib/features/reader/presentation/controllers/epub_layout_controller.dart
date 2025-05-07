@@ -147,7 +147,6 @@ class EpubLayoutController {
     }
   }
 
-  /// Builds the appropriate layout widget based on the current mode
   Widget buildLayout({
     required List<EpubPageContent> pages,
     required Widget Function(EpubPageContent) pageBuilder,

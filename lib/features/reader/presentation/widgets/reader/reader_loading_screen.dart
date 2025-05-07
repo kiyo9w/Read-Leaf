@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as path;
 import 'package:read_leaf/core/constants/responsive_constants.dart';
@@ -78,45 +79,123 @@ class _ReaderLoadingScreenState extends State<ReaderLoadingScreen>
     try {
       final thumbnailService = GetIt.I<ThumbnailService>();
       final fileExtension = path.extension(widget.filePath).toLowerCase();
+      print(
+          'Loading thumbnail for ${path.basename(widget.filePath)} with extension $fileExtension');
 
       if (fileExtension == '.pdf' || fileExtension == '.epub') {
         final file = File(widget.filePath);
         if (await file.exists()) {
+          print('File exists at path: ${widget.filePath}');
+
           // First try to get a cached thumbnail
           final thumbnail =
               await thumbnailService.getThumbnail(widget.filePath);
           if (mounted && thumbnail != null) {
-            setState(() {
-              _thumbnailImage = FileImage(thumbnail);
-              _hasLoadedThumbnail = true;
-            });
-            return;
+            print('Using cached thumbnail');
+
+            // Pre-verify the image data is valid
+            final isValid = await _verifyImageData(FileImage(thumbnail));
+            if (isValid) {
+              setState(() {
+                _thumbnailImage = FileImage(thumbnail);
+                _hasLoadedThumbnail = true;
+              });
+              return;
+            } else {
+              print('Cached thumbnail found but image data is invalid');
+            }
           }
 
+          print('No cached thumbnail found, generating new one');
+
           // If no cached thumbnail, try to generate one
-          final imageProvider =
-              await thumbnailService.getFileThumbnail(widget.filePath);
-          if (mounted) {
-            setState(() {
-              _thumbnailImage = imageProvider;
-              _hasLoadedThumbnail = true;
-            });
+          try {
+            final imageProvider =
+                await thumbnailService.getFileThumbnail(widget.filePath);
+
+            // Pre-verify the image data is valid
+            final isValid = await _verifyImageData(imageProvider);
+
+            if (mounted) {
+              if (isValid) {
+                print('Successfully generated valid thumbnail');
+                setState(() {
+                  _thumbnailImage = imageProvider;
+                  _hasLoadedThumbnail = true;
+                });
+              } else {
+                print(
+                    'Generated thumbnail but image data is invalid, using default');
+                _useDefaultThumbnail(fileExtension);
+              }
+            }
+          } catch (e) {
+            print('Error generating thumbnail: $e');
+            _useDefaultThumbnail(fileExtension);
           }
+        } else {
+          print('File does not exist at path: ${widget.filePath}');
+          _useDefaultThumbnail(fileExtension);
         }
+      } else {
+        print('Unsupported file extension: $fileExtension');
+        _useDefaultThumbnail(fileExtension);
       }
     } catch (e) {
-      print('Error loading thumbnail: $e');
-      // Show a default thumbnail if there's an error
+      print('Error in _loadThumbnail: $e');
       if (mounted) {
         final fileExtension = path.extension(widget.filePath).toLowerCase();
-        setState(() {
-          _thumbnailImage = AssetImage(fileExtension == '.pdf'
-              ? 'assets/images/pdf_placeholder.png'
-              : 'assets/images/epub_placeholder.png');
-          _hasLoadedThumbnail = true;
-        });
+        _useDefaultThumbnail(fileExtension);
       }
     }
+  }
+
+  // New helper method to verify image data is valid
+  Future<bool> _verifyImageData(ImageProvider imageProvider) async {
+    try {
+      final completer = Completer<bool>();
+
+      // Create image stream and listen for events
+      final ImageStream stream =
+          imageProvider.resolve(const ImageConfiguration());
+      final listener = ImageStreamListener(
+        (ImageInfo info, bool _) {
+          completer.complete(true); // Image loaded successfully
+        },
+        onError: (dynamic exception, StackTrace? stackTrace) {
+          print('Image verification failed: $exception');
+          completer.complete(false); // Image failed to load
+        },
+      );
+
+      stream.addListener(listener);
+
+      // Add timeout to prevent hanging
+      Future.delayed(const Duration(seconds: 3), () {
+        if (!completer.isCompleted) {
+          completer.complete(false);
+        }
+      });
+
+      final result = await completer.future;
+      stream.removeListener(listener);
+      return result;
+    } catch (e) {
+      print('Error verifying image data: $e');
+      return false;
+    }
+  }
+
+  void _useDefaultThumbnail(String fileExtension) {
+    if (!mounted) return;
+
+    print('Using default thumbnail for $fileExtension');
+    setState(() {
+      _thumbnailImage = AssetImage(fileExtension == '.pdf'
+          ? 'assets/images/pdf_placeholder.png'
+          : 'assets/images/book_placeholder.png');
+      _hasLoadedThumbnail = true;
+    });
   }
 
   @override
@@ -155,21 +234,41 @@ class _ReaderLoadingScreenState extends State<ReaderLoadingScreen>
               // Background with blur effect
               if (_hasLoadedThumbnail && _thumbnailImage != null)
                 Positioned.fill(
-                  child: Transform.scale(
-                    scale: _scaleAnimation.value,
-                    child: ImageFiltered(
-                      imageFilter: ImageFilter.blur(
-                        sigmaX: _blurAnimation.value,
-                        sigmaY: _blurAnimation.value,
-                      ),
-                      child: Opacity(
-                        opacity: 0.3,
-                        child: Image(
-                          image: _thumbnailImage!,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      try {
+                        return Transform.scale(
+                          scale: _scaleAnimation.value,
+                          child: ImageFiltered(
+                            imageFilter: ImageFilter.blur(
+                              sigmaX: _blurAnimation.value,
+                              sigmaY: _blurAnimation.value,
+                            ),
+                            child: Opacity(
+                              opacity: 0.3,
+                              child: Image(
+                                image: _thumbnailImage!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  print(
+                                      'Error rendering background image: $error');
+                                  return Container(
+                                    color: Theme.of(context)
+                                        .scaffoldBackgroundColor,
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      } catch (e) {
+                        print('Error applying blur effect: $e');
+                        // Fall back to a plain background
+                        return Container(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                        );
+                      }
+                    },
                   ),
                 )
               else
@@ -206,6 +305,25 @@ class _ReaderLoadingScreenState extends State<ReaderLoadingScreen>
                               child: Image(
                                 image: _thumbnailImage!,
                                 fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  print(
+                                      'Error rendering thumbnail image: $error');
+                                  return Container(
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF352A3B)
+                                        : const Color(0xFFF8F1F1),
+                                    child: Center(
+                                      child: Icon(
+                                        fileExtension == '.pdf'
+                                            ? Icons.picture_as_pdf
+                                            : Icons.book,
+                                        size: isTablet ? 80 : 60,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           )

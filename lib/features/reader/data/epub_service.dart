@@ -25,46 +25,22 @@ class EpubService {
   // Additional caches for HTML parsing performance
   final Map<String, dom.Document> _parsedHtmlCache = {};
 
-  // Performance tracking
-  final Stopwatch _performanceStopwatch = Stopwatch();
-
   /// Load and process an EPUB file
   /// Returns a result with the parsed book and pages
   Future<EpubProcessingResult> loadEpub(String filePath) async {
     // Check cache first
     if (_processedBooks.containsKey(filePath)) {
-      print('EPUB loaded from cache');
       return _processedBooks[filePath]!;
     }
 
     try {
-      _performanceStopwatch.reset();
-      _performanceStopwatch.start();
-
       // Load the EPUB file
       final file = File(filePath);
       final bytes = await file.readAsBytes();
-
-      // Measure just the file reading time
-      final fileReadTime = _performanceStopwatch.elapsedMilliseconds;
-      print('EPUB file read in ${fileReadTime}ms');
-      _performanceStopwatch.reset();
-      _performanceStopwatch.start();
-
       final epubBook = await EpubReader.readBook(bytes);
-
-      // Measure just the EPUB parsing time
-      final epubParseTime = _performanceStopwatch.elapsedMilliseconds;
-      print('EPUB parsed in ${epubParseTime}ms');
-      _performanceStopwatch.reset();
-      _performanceStopwatch.start();
 
       // Parse the chapters
       final flatChapters = _flattenChapters(epubBook.Chapters ?? []);
-
-      // Measure chapter flattening time
-      final chapterFlattenTime = _performanceStopwatch.elapsedMilliseconds;
-      print('Chapters flattened in ${chapterFlattenTime}ms');
 
       // Create the result
       final result = EpubProcessingResult(
@@ -77,11 +53,8 @@ class EpubService {
       // Store in cache
       _processedBooks[filePath] = result;
 
-      print(
-          'EPUB loaded in ${fileReadTime + epubParseTime + chapterFlattenTime}ms (total)');
       return result;
     } catch (e) {
-      print('Error loading EPUB: $e');
       rethrow;
     }
   }
@@ -102,16 +75,9 @@ class EpubService {
     }
 
     try {
-      _performanceStopwatch.reset();
-      _performanceStopwatch.start();
-
       // Get or load chapter content
       final chapter = processingResult.chapters[chapterIndex];
       String content = await _getChapterContent(processingResult, chapterIndex);
-
-      final contentLoadTime = _performanceStopwatch.elapsedMilliseconds;
-      _performanceStopwatch.reset();
-      _performanceStopwatch.start();
 
       // Create page calculator
       final calculator = EpubPageCalculator(
@@ -127,16 +93,11 @@ class EpubService {
         chapter.Title ?? 'Chapter ${chapterIndex + 1}',
       );
 
-      final paginationTime = _performanceStopwatch.elapsedMilliseconds;
-      print(
-          'Chapter $chapterIndex: content loaded in ${contentLoadTime}ms, paginated in ${paginationTime}ms (${pages.length} pages)');
-
       // Cache the result
       processingResult.pages[cacheKey] = pages;
 
       return pages;
     } catch (e) {
-      print('Error calculating pages for chapter $chapterIndex: $e');
       // Return a simple error page instead of throwing an exception
       // to prevent cascading failures
       return [
@@ -177,7 +138,7 @@ class EpubService {
     return content;
   }
 
-  /// Clean and normalize HTML content - optimized version
+  /// Clean and normalize HTML content
   String _cleanHtml(String html) {
     if (html.isEmpty) return html;
 
@@ -288,7 +249,6 @@ class EpubService {
       return _removeAllDiv(
           document.getElementsByTagName('body').first.children);
     } catch (e) {
-      print('Error parsing chapter HTML: $e');
       return [];
     }
   }
@@ -341,12 +301,11 @@ class EpubPageCalculator {
   static const double LINE_HEIGHT_MULTIPLIER = 1.5;
   static const double PAGE_PADDING = 20.0;
   static const double PAGE_TOP_PADDING =
-      35.0; // Added specific top padding for app bar
+      35.0;
   static const double PAGE_HEIGHT_FRACTION =
-      0.87; // Reduced from 0.9 to be even more conservative
+      0.87;
   static const double SAFETY_MARGIN =
-      0.0; // Dramatically increased from 50px to prevent overflow
-
+      0.0;
   final double _viewportWidth;
   final double _viewportHeight;
   final double _fontSize;
