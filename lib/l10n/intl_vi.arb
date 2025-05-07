@@ -14,6 +14,7 @@
   "theme": "Giao diện",
   "login": "Đăng nhập",
   "logout": "Đăng xuất",
+  "backOnline": "Đã kết nối lại",
   "signUp": "Đăng ký",
   "email": "Email",
   "password": "Mật khẩu",
@@ -176,7 +177,7 @@
       }
     }
   },
-  "offline": "Ngoại tuyến",
+  "offline": "Bạn đang offline.",
   "isThinking": "đang suy nghĩ",
   "noHighlightsOrNotes": "Không có đánh dấu hoặc ghi chú",
   "selectTextToHighlight": "Chọn văn bản và nhấn nút đánh dấu để thêm",
@@ -237,5 +238,8 @@
   "shareWithFriends": "Chia sẻ ứng dụng này với bạn bè",
   "spreadTheWord": "Lan tỏa thông tin",
   "errorLoadingBookOfDay": "Lỗi tải sách của ngày",
-  "errorGeneratingAiMessage": "Lỗi tạo tin nhắn AI"
+  "errorGeneratingAiMessage": "Lỗi tạo tin nhắn AI",
+  "noInternetConnection": "Không có kết nối mạng",
+  "checkYourConnection": "Vui lòng kiểm tra kết nối mạng và thử lại",
+  "undo": "Hoàn tác"
 } 

@@ -64,9 +64,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Flutter gen code
-/lib/generated
-
 # FVM Version Cache
 .fvm/
 

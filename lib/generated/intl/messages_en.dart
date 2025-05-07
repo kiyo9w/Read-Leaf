@@ -46,6 +46,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "author": MessageLookupByLibrary.simpleMessage("Author"),
         "automaticallySwitchTheme": MessageLookupByLibrary.simpleMessage(
             "Automatically switch between light and dark theme"),
+        "backOnline": MessageLookupByLibrary.simpleMessage("Back online"),
         "backup": MessageLookupByLibrary.simpleMessage("Backup"),
         "bookDetails": MessageLookupByLibrary.simpleMessage("Book Details"),
         "bookOfTheDay": MessageLookupByLibrary.simpleMessage("Book of the day"),
@@ -58,6 +59,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "chat": MessageLookupByLibrary.simpleMessage("Chat"),
         "checkOutThisApp": MessageLookupByLibrary.simpleMessage(
             "Check out this amazing ebook reader app!"),
+        "checkYourConnection": MessageLookupByLibrary.simpleMessage(
+            "Please check your network connection and try again"),
         "chooseCharacter":
             MessageLookupByLibrary.simpleMessage("Choose Character"),
         "contributeOnGitHub":
@@ -138,6 +141,8 @@ class MessageLookup extends MessageLookupByLibrary {
             "No featured characters available"),
         "noHighlightsOrNotes":
             MessageLookupByLibrary.simpleMessage("No highlights or notes"),
+        "noInternetConnection":
+            MessageLookupByLibrary.simpleMessage("No internet connection"),
         "noRecentCharacters": MessageLookupByLibrary.simpleMessage(
             "No recent characters in this category"),
         "noResultsFound":
@@ -146,7 +151,7 @@ class MessageLookup extends MessageLookupByLibrary {
             "No trending characters available"),
         "notAuthenticated":
             MessageLookupByLibrary.simpleMessage("Not authenticated"),
-        "offline": MessageLookupByLibrary.simpleMessage("Offline"),
+        "offline": MessageLookupByLibrary.simpleMessage("You\'re offline"),
         "ok": MessageLookupByLibrary.simpleMessage("OK"),
         "openFavorites": MessageLookupByLibrary.simpleMessage("Open favorites"),
         "pageNumber": m1,
@@ -222,6 +227,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "theme": MessageLookupByLibrary.simpleMessage("Theme"),
         "thumbnails": MessageLookupByLibrary.simpleMessage("Thumbnails"),
         "trending": MessageLookupByLibrary.simpleMessage("Trending"),
+        "undo": MessageLookupByLibrary.simpleMessage("Undo"),
         "unknownAuthor": MessageLookupByLibrary.simpleMessage("Unknown Author"),
         "unmarkAsFavorite":
             MessageLookupByLibrary.simpleMessage("Remove from favorites"),

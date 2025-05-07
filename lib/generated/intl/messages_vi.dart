@@ -45,6 +45,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "author": MessageLookupByLibrary.simpleMessage("Tác giả"),
         "automaticallySwitchTheme": MessageLookupByLibrary.simpleMessage(
             "Tự động chuyển đổi giữa chủ đề sáng và tối"),
+        "backOnline": MessageLookupByLibrary.simpleMessage("Đã kết nối lại"),
         "backup": MessageLookupByLibrary.simpleMessage("Sao lưu"),
         "bookDetails": MessageLookupByLibrary.simpleMessage("Chi tiết sách"),
         "bookmarks": MessageLookupByLibrary.simpleMessage("Đánh dấu"),
@@ -56,6 +57,8 @@ class MessageLookup extends MessageLookupByLibrary {
         "chat": MessageLookupByLibrary.simpleMessage("Trò chuyện"),
         "checkOutThisApp": MessageLookupByLibrary.simpleMessage(
             "Hãy thử ứng dụng đọc sách tuyệt vời này!"),
+        "checkYourConnection": MessageLookupByLibrary.simpleMessage(
+            "Vui lòng kiểm tra kết nối mạng và thử lại"),
         "chooseCharacter":
             MessageLookupByLibrary.simpleMessage("Chọn Nhân Vật"),
         "contributeOnGitHub":
@@ -125,13 +128,15 @@ class MessageLookup extends MessageLookupByLibrary {
             MessageLookupByLibrary.simpleMessage("Không có nhân vật nổi bật"),
         "noHighlightsOrNotes": MessageLookupByLibrary.simpleMessage(
             "Không có đánh dấu hoặc ghi chú"),
+        "noInternetConnection":
+            MessageLookupByLibrary.simpleMessage("Không có kết nối mạng"),
         "noRecentCharacters": MessageLookupByLibrary.simpleMessage(
             "Không có nhân vật gần đây trong danh mục này"),
         "noResultsFound":
             MessageLookupByLibrary.simpleMessage("Không tìm thấy kết quả!"),
         "noTrendingCharacters":
             MessageLookupByLibrary.simpleMessage("Không có nhân vật xu hướng"),
-        "offline": MessageLookupByLibrary.simpleMessage("Ngoại tuyến"),
+        "offline": MessageLookupByLibrary.simpleMessage("Bạn đang offline."),
         "ok": MessageLookupByLibrary.simpleMessage("Đồng ý"),
         "openFavorites":
             MessageLookupByLibrary.simpleMessage("Mở mục yêu thích"),
@@ -206,6 +211,7 @@ class MessageLookup extends MessageLookupByLibrary {
         "theme": MessageLookupByLibrary.simpleMessage("Giao diện"),
         "thumbnails": MessageLookupByLibrary.simpleMessage("Hình thu nhỏ"),
         "trending": MessageLookupByLibrary.simpleMessage("Xu Hướng"),
+        "undo": MessageLookupByLibrary.simpleMessage("Hoàn tác"),
         "unknownAuthor":
             MessageLookupByLibrary.simpleMessage("Tác giả không xác định"),
         "unmarkAsFavorite":

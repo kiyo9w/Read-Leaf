@@ -38,6 +38,12 @@
   "theme": "Theme",
   "login": "Login",
   "logout": "Logout",
+  "backOnline": "Back online",
+  "offline": "You're offline",
+  "undo": "Undo",
+  "@backOnline": {
+    "description": "Message shown when connection is restored"
+  },
   "@logout": {
     "description": "Logout button text"
   },
@@ -220,10 +226,6 @@
         "example": "5"
       }
     }
-  },
-  "offline": "Offline",
-  "@offline": {
-    "description": "Offline status text"
   },
   "isThinking": "is thinking",
   "@isThinking": {
@@ -452,5 +454,13 @@
   "errorGeneratingAiMessage": "Error generating AI message",
   "@errorGeneratingAiMessage": {
     "description": "Error message when AI message generation fails"
+  },
+  "noInternetConnection": "No internet connection",
+  "@noInternetConnection": {
+    "description": "Message shown when there is no internet connection"
+  },
+  "checkYourConnection": "Please check your network connection and try again",
+  "@checkYourConnection": {
+    "description": "Message asking user to check their network connection"
   }
 } 

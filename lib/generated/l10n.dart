@@ -190,6 +190,36 @@ class S {
     );
   }
 
+  /// `Back online`
+  String get backOnline {
+    return Intl.message(
+      'Back online',
+      name: 'backOnline',
+      desc: 'Message shown when connection is restored',
+      args: [],
+    );
+  }
+
+  /// `You're offline`
+  String get offline {
+    return Intl.message(
+      'You\'re offline',
+      name: 'offline',
+      desc: '',
+      args: [],
+    );
+  }
+
+  /// `Undo`
+  String get undo {
+    return Intl.message(
+      'Undo',
+      name: 'undo',
+      desc: '',
+      args: [],
+    );
+  }
+
   /// `Sign Up`
   String get signUp {
     return Intl.message(
@@ -1030,16 +1060,6 @@ class S {
     );
   }
 
-  /// `Offline`
-  String get offline {
-    return Intl.message(
-      'Offline',
-      name: 'offline',
-      desc: 'Offline status text',
-      args: [],
-    );
-  }
-
   /// `is thinking`
   String get isThinking {
     return Intl.message(
@@ -1576,6 +1596,26 @@ class S {
       'Error generating AI message',
       name: 'errorGeneratingAiMessage',
       desc: 'Error message when AI message generation fails',
+      args: [],
+    );
+  }
+
+  /// `No internet connection`
+  String get noInternetConnection {
+    return Intl.message(
+      'No internet connection',
+      name: 'noInternetConnection',
+      desc: 'Message shown when there is no internet connection',
+      args: [],
+    );
+  }
+
+  /// `Please check your network connection and try again`
+  String get checkYourConnection {
+    return Intl.message(
+      'Please check your network connection and try again',
+      name: 'checkYourConnection',
+      desc: 'Message asking user to check their network connection',
       args: [],
     );
   }
