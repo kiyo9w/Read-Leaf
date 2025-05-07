@@ -50,11 +50,63 @@ class ThumbnailService {
     return const AssetImage('assets/images/pdf_placeholder.png');
   }
 
+  // Helper method to validate image bytes
+  bool _isValidImageBytes(Uint8List? bytes) {
+    if (bytes == null || bytes.isEmpty) {
+      return false;
+    }
+
+    // Check for common image signatures
+    // JPEG starts with FF D8 FF
+    if (bytes.length > 2 &&
+        bytes[0] == 0xFF &&
+        bytes[1] == 0xD8 &&
+        bytes[2] == 0xFF) {
+      return true;
+    }
+
+    // PNG starts with 89 50 4E 47 0D 0A 1A 0A
+    if (bytes.length > 7 &&
+        bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47 &&
+        bytes[4] == 0x0D &&
+        bytes[5] == 0x0A &&
+        bytes[6] == 0x1A &&
+        bytes[7] == 0x0A) {
+      return true;
+    }
+
+    // GIF starts with GIF87a or GIF89a
+    if (bytes.length > 5 &&
+        bytes[0] == 0x47 &&
+        bytes[1] == 0x49 &&
+        bytes[2] == 0x46 &&
+        bytes[3] == 0x38 &&
+        (bytes[4] == 0x37 || bytes[4] == 0x39) &&
+        bytes[5] == 0x61) {
+      return true;
+    }
+
+    // If no recognized signature is found, it's likely not a valid image
+    print('Invalid image format detected: not a recognized image format');
+    return false;
+  }
+
   Future<ImageProvider> getEpubThumbnail(String filePath) async {
     final fileName = path.basename(filePath);
+    print('Starting EPUB thumbnail generation for: $fileName');
+
+    // Check if this is a default EPUB and return its pre-cached thumbnail
+    if (_defaultThumbnails.containsKey(fileName)) {
+      print('Using pre-defined thumbnail for $fileName');
+      return AssetImage(_defaultThumbnails[fileName]!);
+    }
 
     // Check memory cache first
     if (_memoryCache.containsKey(filePath)) {
+      print('Found in memory cache: $fileName');
       return _memoryCache[filePath]!;
     }
 
@@ -63,10 +115,27 @@ class ThumbnailService {
     final thumbnailFile = File(thumbnailPath);
 
     if (await thumbnailFile.exists()) {
-      final provider = FileImage(thumbnailFile);
-      _addToMemoryCache(filePath, provider);
-      return provider;
+      print('Found in disk cache: $fileName');
+
+      try {
+        // Validate the cached thumbnail file
+        final fileBytes = await thumbnailFile.readAsBytes();
+        if (!_isValidImageBytes(fileBytes)) {
+          print(
+              'Cached thumbnail exists but contains invalid image data, regenerating...');
+          await thumbnailFile.delete();
+        } else {
+          final provider = FileImage(thumbnailFile);
+          _addToMemoryCache(filePath, provider);
+          return provider;
+        }
+      } catch (e) {
+        print('Error validating cached thumbnail: $e');
+        // Try to regenerate if validation fails
+      }
     }
+
+    print('Generating new thumbnail for EPUB: $fileName');
 
     // Generate new thumbnail
     try {
@@ -74,66 +143,192 @@ class ThumbnailService {
       final bytes = await file.readAsBytes();
       final book = await EpubReader.readBook(bytes);
 
+      print('EPUB loaded, title: ${book.Title}');
+      print('Has content: ${book.Content != null}');
+      print('Has images: ${book.Content?.Images?.isNotEmpty}');
+
+      // Check if book has images at all
+      if (book.Content?.Images == null || book.Content!.Images!.isEmpty) {
+        print('No images found in EPUB, using generated thumbnail');
+        return _generateBookCoverWithTitle(
+            book.Title ?? path.basenameWithoutExtension(fileName),
+            thumbnailFile);
+      }
+
+      // Try to find a cover image with systematic approach
       Uint8List? coverBytes;
 
-      // Try to get cover image
-      if (book.Content?.Images?.isNotEmpty == true) {
-        final possibleCoverImages = book.Content!.Images!.entries
-            .where((e) => e.key.toLowerCase().contains('cover'))
-            .toList();
-        if (possibleCoverImages.isNotEmpty) {
-          coverBytes =
-              Uint8List.fromList(possibleCoverImages.first.value.Content ?? []);
+      // 1. Look for files with 'cover' in name (case insensitive)
+      final coverNamedImages = book.Content!.Images!.entries
+          .where((e) =>
+              e.key.toLowerCase().contains('cover') &&
+              (e.value.Content?.isNotEmpty ?? false))
+          .toList();
+
+      if (coverNamedImages.isNotEmpty) {
+        print(
+            'Found image with "cover" in name: ${coverNamedImages.first.key}');
+        coverBytes = Uint8List.fromList(coverNamedImages.first.value.Content!);
+
+        // Validate the cover image
+        if (!_isValidImageBytes(coverBytes)) {
+          print('Cover image has invalid format, trying alternative images');
+          coverBytes = null;
         }
       }
 
-      if (coverBytes != null && coverBytes.isNotEmpty) {
-        await thumbnailFile.parent.create(recursive: true);
-        await thumbnailFile.writeAsBytes(coverBytes);
+      // 2. If not found or invalid, look for common cover image patterns
+      if (coverBytes == null) {
+        final commonCoverPatterns = ['title', 'front', 'cover', 'title-page'];
 
-        final provider = MemoryImage(coverBytes);
-        _addToMemoryCache(filePath, provider);
-        return provider;
+        for (final pattern in commonCoverPatterns) {
+          final matches = book.Content!.Images!.entries
+              .where((e) =>
+                  e.key.toLowerCase().contains(pattern) &&
+                  (e.value.Content?.isNotEmpty ?? false))
+              .toList();
+
+          if (matches.isNotEmpty) {
+            print(
+                'Found image matching pattern "$pattern": ${matches.first.key}');
+            coverBytes = Uint8List.fromList(matches.first.value.Content!);
+
+            // Validate the image
+            if (_isValidImageBytes(coverBytes)) {
+              break;
+            } else {
+              print(
+                  'Image for pattern "$pattern" has invalid format, trying next pattern');
+              coverBytes = null;
+            }
+          }
+        }
       }
 
-      // If no cover image found, generate a default one with title
-      final widget = Directionality(
-        textDirection: TextDirection.ltr,
-        child: MediaQuery(
-          data: const MediaQueryData(),
-          child: Container(
-            width: thumbnailWidth * 2,
-            height: thumbnailHeight * 2,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Colors.blue.shade200, Colors.blue.shade400],
-              ),
+      // 3. If still not found, use first image if it's large enough (likely a cover)
+      if (coverBytes == null && book.Content!.Images!.isNotEmpty) {
+        final sortedImages = book.Content!.Images!.entries
+            .where((e) => (e.value.Content?.length ?? 0) > 1000)
+            .toList()
+          ..sort((a, b) => (b.value.Content?.length ?? 0)
+              .compareTo(a.value.Content?.length ?? 0));
+
+        if (sortedImages.isNotEmpty) {
+          // Try images in order of size (largest first)
+          for (final imgEntry in sortedImages) {
+            final contentLength = imgEntry.value.Content?.length ?? 0;
+            print('Trying image: ${imgEntry.key}, size: $contentLength bytes');
+
+            coverBytes = Uint8List.fromList(imgEntry.value.Content!);
+
+            // Validate the image
+            if (_isValidImageBytes(coverBytes)) {
+              print('Found valid image: ${imgEntry.key}');
+              break;
+            } else {
+              print(
+                  'Image ${imgEntry.key} has invalid format, trying next image');
+              coverBytes = null;
+            }
+          }
+        }
+      }
+
+      // If we have valid bytes, save and return
+      if (coverBytes != null && coverBytes.isNotEmpty) {
+        try {
+          print('Saving thumbnail to disk cache: $thumbnailPath');
+          await thumbnailFile.parent.create(recursive: true);
+          await thumbnailFile.writeAsBytes(coverBytes);
+
+          final provider = MemoryImage(coverBytes);
+          _addToMemoryCache(filePath, provider);
+          return provider;
+        } catch (e) {
+          print('Error saving thumbnail: $e');
+          // Fall through to default thumbnail generation
+        }
+      } else {
+        print('No suitable cover image found in EPUB');
+      }
+
+      // If no cover image found or saving failed, generate a default one with title
+      return _generateBookCoverWithTitle(
+          book.Title ?? path.basenameWithoutExtension(fileName), thumbnailFile);
+    } catch (e) {
+      print('Error generating EPUB thumbnail: $e');
+      return const AssetImage('assets/images/book_placeholder.png');
+    }
+  }
+
+  // Helper method to generate a thumbnail with title
+  Future<ImageProvider> _generateBookCoverWithTitle(
+      String title, File thumbnailFile) async {
+    print('Generating cover with title: $title');
+    final widget = Directionality(
+      textDirection: TextDirection.ltr,
+      child: MediaQuery(
+        data: const MediaQueryData(),
+        child: Container(
+          width: thumbnailWidth * 2,
+          height: thumbnailHeight * 2,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.blue.shade200, Colors.blue.shade600],
             ),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  book.Title ?? path.basenameWithoutExtension(fileName),
-                  style: const TextStyle(
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.book_outlined,
+                    size: 60,
                     color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
                   ),
-                  textAlign: TextAlign.center,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 2,
+                          color: Colors.black26,
+                          offset: Offset(1, 1),
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ),
         ),
-      );
+      ),
+    );
 
+    try {
       final defaultBytes = await _screenshotController.captureFromWidget(
         widget,
-        delay: const Duration(milliseconds: 200),
+        delay: const Duration(milliseconds: 300),
         pixelRatio: 2.0,
         targetSize: Size(thumbnailWidth * 2, thumbnailHeight * 2),
       );
@@ -142,11 +337,10 @@ class ThumbnailService {
       await thumbnailFile.writeAsBytes(defaultBytes);
 
       final provider = MemoryImage(defaultBytes);
-      _addToMemoryCache(filePath, provider);
       return provider;
     } catch (e) {
-      print('Error generating EPUB thumbnail: $e');
-      return const AssetImage('assets/images/pdf_placeholder.png');
+      print('Error generating default cover: $e');
+      return const AssetImage('assets/images/book_placeholder.png');
     }
   }
 

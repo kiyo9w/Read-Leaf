@@ -92,7 +92,7 @@ class StorageScannerService {
 
         String? downloadsPath =
             await ExternalPath.getExternalStoragePublicDirectory(
-                ExternalPath.DIRECTORY_DOWNLOADS);
+                ExternalPath.DIRECTORY_DOWNLOAD);
         paths.add(downloadsPath);
             } catch (e) {
         print('Error getting storage paths: $e');

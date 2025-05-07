@@ -8,6 +8,7 @@ import 'package:get_it/get_it.dart';
 import 'package:read_leaf/core/themes/custom_theme_extension.dart';
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/core/utils/utils.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class FileCard extends StatefulWidget {
   final String filePath;
@@ -165,7 +166,7 @@ class _FileCardState extends State<FileCard> {
           widget.onRemove();
           Utils.showUndoSnackBar(
             context,
-            'File deleted',
+            S.of(context).fileDeleted,
             () {
               context.read<FileBloc>().add(const UndoRemoveFile());
             },
@@ -212,7 +213,7 @@ class _FileCardState extends State<FileCard> {
         ),
         const SizedBox(height: 4),
         Text(
-          widget.author ?? "Unknown Author",
+          widget.author ?? S.of(context).unknownAuthor,
           style: theme.textTheme.bodyMedium?.copyWith(
             color: customTheme?.fileCardText,
           ),
@@ -221,7 +222,7 @@ class _FileCardState extends State<FileCard> {
         ),
         const SizedBox(height: 4),
         Text(
-          "PDF, ${formatFileSize(widget.fileSize)}",
+          "${S.of(context).pdf}, ${formatFileSize(widget.fileSize)}",
           style: theme.textTheme.bodyMedium?.copyWith(
             color: widget.isSelected
                 ? theme.disabledColor
@@ -250,7 +251,7 @@ class _FileCardState extends State<FileCard> {
                     ? const Color(0xFFFFD700) // Bright yellow gold color
                     : customTheme?.fileCardText.withOpacity(0.6),
                 size: 24.0,
-                semanticLabel: 'Mark as completed',
+                semanticLabel: S.of(context).markAsCompleted,
               ),
             ),
             const SizedBox(width: 22.0),
@@ -261,7 +262,7 @@ class _FileCardState extends State<FileCard> {
                 color:
                     widget.isStarred ? Colors.amber : customTheme?.fileCardText,
                 size: 24.0,
-                semanticLabel: 'Star',
+                semanticLabel: S.of(context).star,
               ),
             ),
           ],
@@ -320,7 +321,7 @@ class _FileCardState extends State<FileCard> {
               Icons.star_border_outlined,
               color: customTheme?.fileCardText,
               size: 24.0,
-              semanticLabel: 'Star',
+              semanticLabel: S.of(context).star,
             ),
             const SizedBox(width: 22.0),
             IconButton(
