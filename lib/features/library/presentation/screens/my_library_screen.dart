@@ -7,6 +7,7 @@ import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/features/library/domain/models/file_info.dart';
 import 'package:read_leaf/core/utils/utils.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class MyLibraryScreen extends StatefulWidget {
   const MyLibraryScreen({super.key});
@@ -65,7 +66,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
               if (mounted) {
                 Utils.showUndoSnackBar(
                   context,
-                  'File deleted',
+                  S.of(context).fileDeleted,
                   () {
                     context.read<FileBloc>().add(const UndoRemoveFile());
                   },
@@ -83,13 +84,33 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
           return Scaffold(
             appBar: AppBar(
               backgroundColor: theme.scaffoldBackgroundColor,
+              elevation: 0,
               centerTitle: false,
               title: Text(
-                'My Library',
-                style: theme.textTheme.displayLarge?.copyWith(
-                  fontSize: isTablet ? 28 : 24,
+                S.of(context).myLibrary,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    Icons.sort,
+                    size: 20,
+                    color: theme.iconTheme.color,
+                  ),
+                  onPressed: () {},
+                ),
+                IconButton(
+                  icon: Icon(
+                    Icons.more_vert,
+                    size: 20,
+                    color: theme.iconTheme.color,
+                  ),
+                  onPressed: () {},
+                ),
+                const SizedBox(width: 8),
+              ],
             ),
             body: SingleChildScrollView(
               controller: _scrollController,
@@ -99,7 +120,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildCategoryHeader(
-                      title: "Starred Books",
+                      title: S.of(context).starredBooks,
                       count: starredBooks.length,
                       isExpanded: _favouriteExpanded,
                       onTap: () {
@@ -112,7 +133,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                       ..._buildBookCards(starredBooks),
                     SizedBox(height: isTablet ? 24 : 20),
                     _buildCategoryHeader(
-                      title: "Have Read",
+                      title: S.of(context).haveRead,
                       count: completedBooks.length,
                       isExpanded: _haveReadExpanded,
                       onTap: () {
@@ -125,7 +146,7 @@ class _MyLibraryScreenState extends State<MyLibraryScreen> {
                       ..._buildBookCards(completedBooks),
                     SizedBox(height: isTablet ? 24 : 20),
                     _buildCategoryHeader(
-                      title: "Local Storage",
+                      title: S.of(context).localStorage,
                       count: localFiles.length,
                       isExpanded: _localStorageExpanded,
                       onTap: () {

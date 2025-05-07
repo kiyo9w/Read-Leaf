@@ -23,6 +23,7 @@ import 'package:read_leaf/features/reader/presentation/widgets/reader/full_selec
 import 'package:read_leaf/features/reader/presentation/widgets/reader/reader_settings_menu.dart';
 import 'dart:async';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 enum PdfLayoutMode { vertical, horizontal, facing }
 
@@ -63,13 +64,13 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
   String get _currentTitle {
     switch (_tabController.index) {
       case 0:
-        return 'Table of Contents';
+        return S.of(context).tableOfContents;
       case 1:
-        return 'Highlights and Notes';
+        return S.of(context).highlightsAndNotes;
       case 2:
-        return 'Thumbnails';
+        return S.of(context).thumbnails;
       default:
-        return 'Table of Contents';
+        return S.of(context).tableOfContents;
     }
   }
 
@@ -214,11 +215,6 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     _textSearcher.dispose();
     outline.dispose();
     documentRef.dispose();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        NavScreen.globalKey.currentState?.hideNavBar(false);
-      }
-    });
     super.dispose();
   }
 
@@ -399,8 +395,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
     try {
       final response = await _geminiService.askAboutText(
         selectedText ?? '',
-        customPrompt: message ??
-            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+        customPrompt: message ?? S.of(context).explainTextAndAskQuestion,
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
@@ -414,7 +409,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
       }
     } catch (e) {
       if (!mounted) return;
-      Utils.showErrorSnackBar(context, 'Failed to get AI response');
+      Utils.showErrorSnackBar(context, S.of(context).failedToGetAIResponse);
       dev.log('Error in _handleChatMessage: $e');
     }
   }
@@ -661,7 +656,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                'Highlight',
+                                S.of(context).highlight,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -715,7 +710,7 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                'Audio',
+                                S.of(context).audio,
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
@@ -762,7 +757,8 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
 
         if (state is ReaderError) {
           return Scaffold(
-            body: Center(child: Text('Error: ${state.message}')),
+            body:
+                Center(child: Text(S.of(context).error + ': ' + state.message)),
           );
         }
 
@@ -1258,170 +1254,188 @@ class _PDFViewerScreenState extends State<PDFViewerScreen>
                       left: showSideNav
                           ? 0
                           : -ResponsiveConstants.getSideNavWidth(context),
-                      child: GestureDetector(
-                        onHorizontalDragUpdate: (details) {
-                          if (details.delta.dx < 0) {
-                            // Only handle left swipes
-                            _closeSideNav(context);
-                          }
-                        },
-                        child: Container(
-                          width: ResponsiveConstants.getSideNavWidth(context),
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF251B2F).withOpacity(0.98)
-                              : const Color(0xFFFAF9F7).withOpacity(0.98),
-                          child: SafeArea(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 24
-                                            : 16,
-                                    vertical:
-                                        ResponsiveConstants.isTablet(context)
-                                            ? 16
-                                            : 12,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Text(
-                                        _currentTitle,
-                                        style: TextStyle(
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFFF2F2F7)
-                                              : const Color(0xFF1C1C1E),
-                                          fontSize: ResponsiveConstants
-                                              .getTitleFontSize(context),
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                      const Spacer(),
-                                      IconButton(
-                                        padding: EdgeInsets.zero,
-                                        constraints: BoxConstraints(
-                                          minWidth:
-                                              ResponsiveConstants.getIconSize(
-                                                  context),
-                                          minHeight:
-                                              ResponsiveConstants.getIconSize(
-                                                  context),
-                                        ),
-                                        icon: Icon(
-                                          Icons.close,
-                                          color: Theme.of(context).brightness ==
-                                                  Brightness.dark
-                                              ? const Color(0xFF8E8E93)
-                                              : const Color(0xFF6E6E73),
-                                          size: ResponsiveConstants.getIconSize(
-                                              context),
-                                        ),
-                                        onPressed: () {
-                                          context
-                                              .read<ReaderBloc>()
-                                              .add(ToggleSideNav());
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    border: Border(
-                                      bottom: BorderSide(
-                                        color: Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFF2C2C2E)
-                                            : const Color(0xFFF8F1F1),
-                                      ),
+                      child: Material(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF251B2F).withOpacity(0.98)
+                            : const Color(0xFFFAF9F7).withOpacity(0.98),
+                        child: Listener(
+                          onPointerMove: (event) {
+                            // Handle left swipe to close side nav
+                            if (event.delta.dx < -10) {
+                              _closeSideNav(context);
+                            }
+                          },
+                          child: Container(
+                            width: ResponsiveConstants.getSideNavWidth(context),
+                            child: SafeArea(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 24
+                                              : 16,
+                                      vertical:
+                                          ResponsiveConstants.isTablet(context)
+                                              ? 16
+                                              : 12,
                                     ),
-                                  ),
-                                  child: TabBar(
-                                    controller: _tabController,
-                                    tabs: const [
-                                      Tab(text: 'Chapters'),
-                                      Tab(text: 'Bookmarks'),
-                                      Tab(text: 'Pages'),
-                                    ],
-                                    labelColor: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFFAA96B6)
-                                        : const Color(0xFF9E7B80),
-                                    unselectedLabelColor:
-                                        Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFF8E8E93)
-                                            : const Color(0xFF6E6E73),
-                                    indicatorColor:
-                                        Theme.of(context).brightness ==
-                                                Brightness.dark
-                                            ? const Color(0xFFAA96B6)
-                                            : const Color(0xFF9E7B80),
-                                    indicatorWeight: 2,
-                                    labelStyle: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                    unselectedLabelStyle: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w400,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Container(
-                                    color: Theme.of(context).brightness ==
-                                            Brightness.dark
-                                        ? const Color(0xFF352A3B)
-                                            .withOpacity(0.5)
-                                        : const Color(0xFFF8F1F1)
-                                            .withOpacity(0.5),
-                                    child: TabBarView(
-                                      controller: _tabController,
+                                    child: Row(
                                       children: [
-                                        ValueListenableBuilder(
-                                          valueListenable: outline,
-                                          builder: (context, outline, child) =>
-                                              OutlineView(
-                                            outline: outline,
-                                            controller: _controller,
+                                        Text(
+                                          _currentTitle,
+                                          style: TextStyle(
+                                            color:
+                                                Theme.of(context).brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFFF2F2F7)
+                                                    : const Color(0xFF1C1C1E),
+                                            fontSize: ResponsiveConstants
+                                                .getTitleFontSize(context),
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                        MarkersView(
-                                          markers: _markers.values
-                                              .expand((e) => e)
-                                              .toList(),
-                                          onTap: (marker) {
-                                            final rect = _controller
-                                                .calcRectForRectInsidePage(
-                                              pageNumber: marker
-                                                  .ranges.pageText.pageNumber,
-                                              rect: marker.ranges.bounds,
-                                            );
-                                            _controller.ensureVisible(rect);
-                                            context
-                                                .read<ReaderBloc>()
-                                                .add(ToggleSideNav());
-                                          },
-                                          onDeleteTap: (marker) =>
-                                              _deleteMarker(marker),
-                                        ),
-                                        ValueListenableBuilder(
-                                          valueListenable: documentRef,
-                                          builder: (context, docRef, child) =>
-                                              ThumbnailsView(
-                                            documentRef: docRef,
-                                            controller: _controller,
+                                        const Spacer(),
+                                        Material(
+                                          color: Colors.transparent,
+                                          borderRadius:
+                                              BorderRadius.circular(20),
+                                          child: InkWell(
+                                            borderRadius:
+                                                BorderRadius.circular(20),
+                                            onTap: () {
+                                              context
+                                                  .read<ReaderBloc>()
+                                                  .add(ToggleSideNav());
+                                            },
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(4.0),
+                                              child: Icon(
+                                                Icons.close,
+                                                color: Theme.of(context)
+                                                            .brightness ==
+                                                        Brightness.dark
+                                                    ? const Color(0xFF8E8E93)
+                                                    : const Color(0xFF6E6E73),
+                                                size: ResponsiveConstants
+                                                    .getIconSize(context),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                ),
-                              ],
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFF2C2C2E)
+                                              : const Color(0xFFF8F1F1),
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    child: TabBar(
+                                      controller: _tabController,
+                                      labelColor:
+                                          Theme.of(context).colorScheme.primary,
+                                      unselectedLabelColor:
+                                          Theme.of(context).brightness ==
+                                                  Brightness.dark
+                                              ? const Color(0xFF8E8E93)
+                                              : const Color(0xFF6E6E73),
+                                      indicatorColor:
+                                          Theme.of(context).colorScheme.primary,
+                                      indicatorWeight: 3,
+                                      labelStyle: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      unselectedLabelStyle: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                      labelPadding: const EdgeInsets.symmetric(
+                                          vertical: 8),
+                                      tabs: [
+                                        Tab(
+                                          icon: Icon(Icons.menu_book_outlined,
+                                              size: 20),
+                                          text: S.of(context).chapters,
+                                        ),
+                                        Tab(
+                                          icon: Icon(Icons.bookmark_border,
+                                              size: 20),
+                                          text: S.of(context).bookmarks,
+                                        ),
+                                        Tab(
+                                          icon: Icon(
+                                              Icons.photo_library_outlined,
+                                              size: 20),
+                                          text: S.of(context).pages,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Container(
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? const Color(0xFF352A3B)
+                                              .withOpacity(0.5)
+                                          : const Color(0xFFF8F1F1)
+                                              .withOpacity(0.5),
+                                      child: TabBarView(
+                                        controller: _tabController,
+                                        children: [
+                                          ValueListenableBuilder(
+                                            valueListenable: outline,
+                                            builder:
+                                                (context, outline, child) =>
+                                                    OutlineView(
+                                              outline: outline,
+                                              controller: _controller,
+                                            ),
+                                          ),
+                                          MarkersView(
+                                            markers: _markers.values
+                                                .expand((e) => e)
+                                                .toList(),
+                                            onTap: (marker) {
+                                              final rect = _controller
+                                                  .calcRectForRectInsidePage(
+                                                pageNumber: marker
+                                                    .ranges.pageText.pageNumber,
+                                                rect: marker.ranges.bounds,
+                                              );
+                                              _controller.ensureVisible(rect);
+                                              context
+                                                  .read<ReaderBloc>()
+                                                  .add(ToggleSideNav());
+                                            },
+                                            onDeleteTap: (marker) =>
+                                                _deleteMarker(marker),
+                                          ),
+                                          ValueListenableBuilder(
+                                            valueListenable: documentRef,
+                                            builder: (context, docRef, child) =>
+                                                ThumbnailsView(
+                                              documentRef: docRef,
+                                              controller: _controller,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),

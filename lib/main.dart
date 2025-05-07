@@ -18,7 +18,7 @@ import 'package:read_leaf/features/library/presentation/screens/splash_screen.da
 import 'injection/injection.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -150,7 +150,7 @@ class MyApp extends StatelessWidget {
 
                 // Add localization support
                 localizationsDelegates: const [
-                  AppLocalizations.delegate,
+                  AppLocalizationDelegate(),
                   GlobalMaterialLocalizations.delegate,
                   GlobalWidgetsLocalizations.delegate,
                   GlobalCupertinoLocalizations.delegate,

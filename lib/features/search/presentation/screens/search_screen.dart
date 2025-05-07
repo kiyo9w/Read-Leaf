@@ -10,6 +10,7 @@ import 'package:read_leaf/injection/injection.dart';
 import 'package:read_leaf/features/search/data/annas_archieve.dart';
 import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
+import '../widgets/book_skeleton.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -27,17 +28,28 @@ class _SearchScreenState extends State<SearchScreen>
   late final SearchBloc _searchBloc;
   late final AnnasArchieve _annasArchieve;
   bool _isLoading = false;
-  Map<String, List<BookData>>? _trendingBooks;
-  Map<String, List<BookData>>? _topSearches;
+  Map<String, List<BookData>>? _categoryBooks;
   final ScrollController _scrollController = ScrollController();
   bool _isScrollingDown = false;
   final Map<String, bool> _expandedSections = {};
+  String _selectedCategory = 'Most Downloaded';
+
+  // Add map to store category scroll positions
+  final Map<String, GlobalKey> _categoryKeys = {};
+
+  // Add estimated height for each category section
+  final double _estimatedCategoryHeight =
+      280; // Height of category header + content
 
   @override
   void initState() {
     super.initState();
     _searchBloc = getIt<SearchBloc>();
     _annasArchieve = getIt<AnnasArchieve>();
+    // Initialize category keys
+    for (final category in SearchConstants.categoryQueries.keys) {
+      _categoryKeys[category] = GlobalKey();
+    }
     _fetchInitialData();
     _scrollController.addListener(_scrollListener);
   }
@@ -69,20 +81,88 @@ class _SearchScreenState extends State<SearchScreen>
   Future<void> _fetchInitialData() async {
     setState(() => _isLoading = true);
     try {
-      final trendingFuture =
-          _annasArchieve.getMassBooks(queries: SearchConstants.trendingQueries);
-      final topSearchesFuture = _annasArchieve.getMassBooks(
-          queries: SearchConstants.topSearchQueries);
-      final results = await Future.wait([trendingFuture, topSearchesFuture]);
+      final Map<String, List<BookData>> categoryBooks = {};
+
+      // Process each category sequentially to avoid rate limiting
+      for (var entry in SearchConstants.categoryQueries.entries) {
+        final category = entry.key;
+        final queries = entry.value;
+
+        // Create a set to store unique books based on title
+        final Set<BookData> uniqueBooks = {};
+
+        // Try each query until we have enough unique books
+        for (var query in queries) {
+          if (uniqueBooks.length >= 8) break;
+
+          try {
+            final results = await _annasArchieve.searchBooks(
+              searchQuery: query,
+              enableFilters: true,
+              content: category == 'Top Fiction'
+                  ? 'book_fiction'
+                  : category == 'Top Non-Fiction'
+                      ? 'book_nonfiction'
+                      : '',
+              sort: category == 'Most Downloaded' ? 'largest' : 'newest',
+            );
+
+            // Add only unique books
+            for (var book in results) {
+              if (uniqueBooks.length >= 8) break;
+              // Check if book is unique based on title
+              if (!uniqueBooks.any((b) => b.title == book.title)) {
+                uniqueBooks.add(book);
+              }
+            }
+          } catch (e) {
+            print('Error fetching books for query $query: $e');
+            continue;
+          }
+        }
+
+        categoryBooks[category] = uniqueBooks.toList();
+      }
+
       setState(() {
-        _trendingBooks = results[0];
-        _topSearches = results[1];
+        _categoryBooks = categoryBooks;
         _isLoading = false;
       });
     } catch (e) {
       print('Error fetching initial data: $e');
       setState(() => _isLoading = false);
     }
+  }
+
+  void _scrollToCategory(String category) {
+    final categories = SearchConstants.categoryQueries.keys.toList();
+    final index = categories.indexOf(category);
+    if (index == -1) return;
+
+    // Calculate approximate position
+    final approximatePosition = index * _estimatedCategoryHeight;
+
+    // First scroll to the approximate position
+    _scrollController
+        .animateTo(
+      approximatePosition,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    )
+        .then((_) {
+      // After reaching approximate position, try to find exact position
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final categoryKey = _categoryKeys[category];
+        if (categoryKey?.currentContext != null) {
+          Scrollable.ensureVisible(
+            categoryKey!.currentContext!,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            alignment: 0.0,
+          );
+        }
+      });
+    });
   }
 
   void onSubmit(BuildContext context) {
@@ -347,6 +427,7 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isTablet = ResponsiveConstants.isTablet(context);
@@ -361,188 +442,168 @@ class _SearchScreenState extends State<SearchScreen>
       builder: (context, state) {
         return Scaffold(
           backgroundColor: theme.scaffoldBackgroundColor,
-          appBar: AppBar(
-            backgroundColor: theme.scaffoldBackgroundColor,
-            centerTitle: false,
-            title: Text(
-              'Search',
-              style: theme.textTheme.displayLarge?.copyWith(
-                fontSize: isTablet ? 28 : 24,
-              ),
-            ),
-          ),
-          body: GestureDetector(
-            onTap: () {
-              FocusScope.of(context).unfocus();
-            },
-            child: SingleChildScrollView(
-              controller: _scrollController,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: EdgeInsets.all(isTablet ? 20 : 15),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: theme.cardColor,
-                        borderRadius: BorderRadius.circular(isTablet ? 60 : 50),
-                      ),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            padding: EdgeInsets.only(right: isTablet ? 8 : 5),
-                            color: isDark ? Colors.white54 : Colors.grey,
-                            icon: Icon(Icons.search, size: isTablet ? 28 : 23),
-                            onPressed: () => onSubmit(context),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              onTap: () => {
-                                NavScreen.globalKey.currentState
-                                    ?.hideNavBar(true)
-                              },
-                              onTapOutside: (value) {
-                                WidgetsBinding.instance
-                                    .addPostFrameCallback((_) {
-                                  if (mounted) {
-                                    NavScreen.globalKey.currentState
-                                        ?.hideNavBar(false);
-                                  }
-                                });
-                              },
-                              autocorrect: false,
-                              showCursor: true,
-                              cursorColor:
-                                  isDark ? Colors.white70 : Colors.grey,
-                              decoration: InputDecoration(
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: isTablet ? 18 : 15,
-                                ),
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                hintText: "Find some books...",
-                                hintStyle: TextStyle(
-                                  color: isDark ? Colors.white54 : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: isTablet ? 16 : 14,
-                                ),
-                                fillColor: theme.cardColor,
-                              ),
-                              onSubmitted: (_) => onSubmit(context),
-                              style: TextStyle(
-                                color: isDark ? Colors.white : Colors.black,
-                                fontWeight: FontWeight.bold,
-                                fontSize: isTablet ? 16 : 14,
-                              ),
-                              onChanged: (value) =>
-                                  setState(() => searchQuery = value),
-                            ),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.filter_list,
-                                size: isTablet ? 28 : 24),
-                            color: isDark ? Colors.white54 : Colors.grey,
-                            onPressed: () => {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                NavScreen.globalKey.currentState
-                                    ?.hideNavBar(true);
-                              }),
-                              _showFilterModal(context),
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
+          body: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              SliverAppBar(
+                floating: true,
+                snap: true,
+                elevation: 0,
+                backgroundColor: theme.scaffoldBackgroundColor,
+                title: Text(
+                  'Search',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  if (_isLoading)
-                    Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(isTablet ? 32 : 24),
-                        child: CircularProgressIndicator(
-                          strokeWidth: isTablet ? 3 : 2,
+                ),
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.filter_list,
+                      color: theme.iconTheme.color,
+                      size: 20,
+                    ),
+                    onPressed: () => _showFilterModal(context),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                bottom: PreferredSize(
+                  preferredSize: Size.fromHeight(isTablet ? 120 : 100),
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: theme.cardColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: TextField(
+                            onTap: () => NavScreen.globalKey.currentState
+                                ?.hideNavBar(true),
+                            onTapOutside: (value) {
+                              NavScreen.globalKey.currentState
+                                  ?.hideNavBar(false);
+                            },
+                            decoration: InputDecoration(
+                              prefixIcon: Icon(
+                                Icons.search,
+                                color: theme.iconTheme.color?.withOpacity(0.5),
+                                size: 20,
+                              ),
+                              hintText: "Find some books...",
+                              hintStyle: TextStyle(
+                                color: theme.iconTheme.color?.withOpacity(0.5),
+                                fontSize: 14,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                            ),
+                            onSubmitted: (_) => onSubmit(context),
+                            onChanged: (value) =>
+                                setState(() => searchQuery = value),
+                          ),
                         ),
                       ),
-                    )
-                  else ...[
-                    _buildTopSearches(),
-                    _buildTrending(),
-                  ],
-                ],
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 32,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: SearchConstants.categoryQueries.length,
+                          itemBuilder: (context, index) {
+                            final category = SearchConstants
+                                .categoryQueries.keys
+                                .elementAt(index);
+                            final isSelected = category == _selectedCategory;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(
+                                  category,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isSelected
+                                        ? theme.colorScheme.primary
+                                        : theme.colorScheme.onSurface,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                selected: isSelected,
+                                onSelected: (_) {
+                                  setState(() => _selectedCategory = category);
+                                  _scrollToCategory(category);
+                                },
+                                backgroundColor: theme.cardColor,
+                                selectedColor:
+                                    theme.colorScheme.primary.withOpacity(0.2),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? theme.colorScheme.primary
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                  ),
+                ),
               ),
-            ),
+              if (_isLoading)
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) => CategorySkeleton(isTablet: isTablet),
+                    childCount: 3,
+                  ),
+                )
+              else
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      if (_categoryBooks == null) return const SizedBox();
+                      final category =
+                          SearchConstants.categoryQueries.keys.elementAt(index);
+                      final books = _categoryBooks![category] ?? [];
+                      if (books.isEmpty) return const SizedBox();
+
+                      return _buildBookCategory(
+                        title: category,
+                        books: books,
+                        isTablet: isTablet,
+                      );
+                    },
+                    childCount: SearchConstants.categoryQueries.length,
+                  ),
+                ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildTopSearches() {
-    final theme = Theme.of(context);
-    final isTablet = ResponsiveConstants.isTablet(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: isTablet ? 16 : 10,
-            vertical: isTablet ? 24 : 20,
-          ),
-          child: Text(
-            'Top searches',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: isTablet ? 24 : 20,
-            ),
-          ),
-        ),
-        if (_topSearches != null) ...[
-          ..._topSearches!.entries.map((entry) {
-            final query = entry.key;
-            final books = entry.value;
-            if (books.isEmpty) {
-              return const SizedBox();
-            }
-            return ListTile(
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: isTablet ? 20 : 16,
-                vertical: isTablet ? 12 : 8,
-              ),
-              title: Text(
-                books.first.title ?? query,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize: isTablet ? 18 : 16,
-                ),
-              ),
-              subtitle: Text(
-                books.first.author ?? 'Unknown author',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  fontSize: isTablet ? 14 : 12,
-                ),
-              ),
-              onTap: () {
-                _searchBloc.add(SearchBooks(
-                  query: query,
-                  enableFilters: false,
-                ));
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ResultPage(searchQuery: query),
-                  ),
-                );
-              },
-            );
-          }),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildTrending() {
+  Widget _buildBookCategory({
+    required String title,
+    required List<BookData> books,
+    required bool isTablet,
+  }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final isTablet = ResponsiveConstants.isTablet(context);
 
     return Column(
+      key: _categoryKeys[title],
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
@@ -550,85 +611,112 @@ class _SearchScreenState extends State<SearchScreen>
             horizontal: isTablet ? 16 : 10,
             vertical: isTablet ? 24 : 20,
           ),
-          child: Text(
-            'Trending',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: isTablet ? 24 : 20,
-            ),
+          child: Row(
+            children: [
+              Container(
+                width: 4,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontSize: isTablet ? 24 : 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
-        if (_trendingBooks != null)
-          SizedBox(
-            height: isTablet ? 220 : 180,
-            child: ListView.builder(
-              key: const PageStorageKey('trending_list'),
-              scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 10),
-              itemCount: _trendingBooks!.length,
-              itemBuilder: (context, index) {
-                final entry = _trendingBooks!.entries.elementAt(index);
-                final books = entry.value;
-                if (books.isEmpty) return const SizedBox();
-                final book = books.first;
-
-                return RepaintBoundary(
-                  child: Padding(
-                    padding: EdgeInsets.only(right: isTablet ? 16 : 10),
-                    child: GestureDetector(
-                      onTap: () {
-                        _searchBloc.add(SearchBooks(
-                          query: book.title ?? "",
-                          enableFilters: false,
-                        ));
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                ResultPage(searchQuery: book.title ?? ""),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: isTablet ? 150 : 120,
-                        decoration: BoxDecoration(
-                          color: theme.cardColor,
-                          borderRadius:
-                              BorderRadius.circular(isTablet ? 12 : 8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: isDark ? Colors.black26 : Colors.black12,
-                              blurRadius: isTablet ? 6 : 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
+        SizedBox(
+          height: isTablet ? 220 : 180,
+          child: ListView.builder(
+            key: PageStorageKey(title),
+            scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: isTablet ? 16 : 10),
+            itemCount: books.length,
+            itemBuilder: (context, index) {
+              final book = books[index];
+              return RepaintBoundary(
+                child: Padding(
+                  padding: EdgeInsets.only(right: isTablet ? 16 : 10),
+                  child: GestureDetector(
+                    onTap: () {
+                      _searchBloc.add(SearchBooks(
+                        query: book.title ?? "",
+                        enableFilters: false,
+                      ));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              ResultPage(searchQuery: book.title ?? ""),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (book.thumbnail != null)
-                              ClipRRect(
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(isTablet ? 12 : 8),
-                                ),
-                                child: SizedBox(
-                                  height: isTablet ? 150 : 120,
-                                  width: isTablet ? 150 : 120,
-                                  child: FutureBuilder<ImageProvider>(
-                                    key: ValueKey(book.thumbnail),
-                                    future: ThumbnailService()
-                                        .getNetworkThumbnail(book.thumbnail!),
-                                    builder: (context, snapshot) {
-                                      if (snapshot.connectionState ==
-                                          ConnectionState.waiting) {
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: isTablet ? 3 : 2,
-                                            color: theme.primaryColor,
-                                          ),
-                                        );
-                                      }
-                                      if (snapshot.hasError ||
-                                          !snapshot.hasData) {
+                      );
+                    },
+                    child: Container(
+                      width: isTablet ? 150 : 120,
+                      decoration: BoxDecoration(
+                        color: theme.cardColor,
+                        borderRadius: BorderRadius.circular(isTablet ? 12 : 8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark ? Colors.black26 : Colors.black12,
+                            blurRadius: isTablet ? 6 : 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (book.thumbnail != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.vertical(
+                                top: Radius.circular(isTablet ? 12 : 8),
+                              ),
+                              child: SizedBox(
+                                height: isTablet ? 150 : 120,
+                                width: isTablet ? 150 : 120,
+                                child: FutureBuilder<ImageProvider>(
+                                  key: ValueKey(book.thumbnail),
+                                  future: ThumbnailService()
+                                      .getNetworkThumbnail(book.thumbnail!),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: isTablet ? 3 : 2,
+                                          color: theme.primaryColor,
+                                        ),
+                                      );
+                                    }
+                                    if (snapshot.hasError ||
+                                        !snapshot.hasData) {
+                                      return Container(
+                                        color: isDark
+                                            ? Colors.grey[800]
+                                            : Colors.grey[300],
+                                        child: Icon(
+                                          Icons.book,
+                                          size: isTablet ? 48 : 40,
+                                          color: isDark
+                                              ? Colors.white54
+                                              : Colors.black54,
+                                        ),
+                                      );
+                                    }
+                                    return Image(
+                                      key: ValueKey(book.thumbnail),
+                                      image: snapshot.data!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
                                         return Container(
                                           color: isDark
                                               ? Colors.grey[800]
@@ -641,64 +729,43 @@ class _SearchScreenState extends State<SearchScreen>
                                                 : Colors.black54,
                                           ),
                                         );
-                                      }
-                                      return Image(
-                                        key: ValueKey(book.thumbnail),
-                                        image: snapshot.data!,
-                                        fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) {
-                                          return Container(
-                                            color: isDark
-                                                ? Colors.grey[800]
-                                                : Colors.grey[300],
-                                            child: Icon(
-                                              Icons.book,
-                                              size: isTablet ? 48 : 40,
-                                              color: isDark
-                                                  ? Colors.white54
-                                                  : Colors.black54,
-                                            ),
-                                          );
-                                        },
-                                      );
-                                    },
-                                  ),
-                                ),
-                              )
-                            else
-                              Container(
-                                height: isTablet ? 150 : 120,
-                                color: isDark
-                                    ? Colors.grey[800]
-                                    : Colors.grey[300],
-                                child: Icon(
-                                  Icons.book,
-                                  size: isTablet ? 48 : 40,
-                                  color:
-                                      isDark ? Colors.white54 : Colors.black54,
+                                      },
+                                    );
+                                  },
                                 ),
                               ),
-                            Padding(
-                              padding: EdgeInsets.all(isTablet ? 12 : 8),
-                              child: Text(
-                                book.title ?? "Unknown",
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  fontSize: isTablet ? 16 : 14,
-                                ),
+                            )
+                          else
+                            Container(
+                              height: isTablet ? 150 : 120,
+                              color:
+                                  isDark ? Colors.grey[800] : Colors.grey[300],
+                              child: Icon(
+                                Icons.book,
+                                size: isTablet ? 48 : 40,
+                                color: isDark ? Colors.white54 : Colors.black54,
                               ),
                             ),
-                          ],
-                        ),
+                          Padding(
+                            padding: EdgeInsets.all(isTablet ? 12 : 8),
+                            child: Text(
+                              book.title ?? "Unknown",
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontSize: isTablet ? 16 : 14,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
+        ),
       ],
     );
   }

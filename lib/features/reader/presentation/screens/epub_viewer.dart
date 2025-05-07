@@ -30,6 +30,9 @@ import 'package:read_leaf/features/reader/presentation/managers/epub_highlight_m
 import 'package:read_leaf/features/reader/presentation/controllers/epub_layout_controller.dart';
 import 'package:material_symbols_icons/material_symbols_icons.dart';
 import 'package:read_leaf/features/reader/data/text_selection_service.dart';
+import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
+import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class EPUBViewerScreen extends StatefulWidget {
   const EPUBViewerScreen({super.key});
@@ -58,7 +61,6 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   BookMetadata? _metadata;
   bool _isDisposed = false;
   EpubLayoutMode _layoutMode = EpubLayoutMode.longStrip;
-  final bool _isRightToLeftReadingOrder = false;
   Timer? _sliderDwellTimer;
   bool _isSliderInteracting = false;
   final Map<int, List<EpubPageContent>> _chapterPagesCache = {};
@@ -71,8 +73,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   // Add these getters for slider values
   double get _sliderValue {
-    // Make sure we get exactly the current page number for the slider
-    return _currentPage.toDouble();
+    // Make sure the slider value is always within the valid range
+    return _currentPage.clamp(1, math.max(1, _totalPages)).toDouble();
   }
 
   double get _sliderMax => math.max(1.0, _totalPages.toDouble());
@@ -503,7 +505,11 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     await Future.delayed(Duration.zero); // Wait for widget to be mounted
     if (!mounted) return;
 
-    NavScreen.globalKey.currentState?.hideNavBar(true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        NavScreen.globalKey.currentState?.hideNavBar(true);
+      }
+    });
     _positionsListener.itemPositions.addListener(_onScroll);
 
     // Begin book loading and pagination process
@@ -544,15 +550,10 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   @override
   void dispose() {
-    if (_metadata != null && !_isDisposed) {
-      _updateMetadata(_currentPage);
-    }
-
-    // Cancel position lock timer
+    _updateMetadata(_currentPage);
     _positionLockTimer?.cancel();
 
     _cleanupCache();
-    _isDisposed = true;
     _positionsListener.itemPositions.removeListener(_onScroll);
     _pulseController.dispose();
     _pulseTimer?.cancel();
@@ -794,39 +795,22 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     // Wait for the current pagination to finish first
     await Future.delayed(const Duration(milliseconds: 300));
 
-    // Check if we need to update the total pages first
-    if (_flattenedPages.length > _totalPages) {
-      _safeSetState(() {
-        _totalPages = _flattenedPages.length;
-      });
-      print('Updated total pages to match flattened pages: $_totalPages');
-    }
-
-    // Wait for all chapters to be loaded
+    // If we need to force complete pagination, do it
     if (_chapterPagesCache.length < _flatChapters.length) {
       print('Not all chapters are cached, forcing complete pagination...');
       await _forceCompletePagination();
     }
 
-    // Final update to total pages based on all available information
-    int calculatedTotal = 0;
-
-    // First try to use flattened pages length which should be accurate for long strip
+    // At this point, pagination should be complete
+    // Update total pages based on flattened pages (which should be accurate now)
     if (_flattenedPages.isNotEmpty) {
-      calculatedTotal = _flattenedPages.length;
-    } else {
-      // Otherwise sum up all chapter pages
-      for (final chapterPages in _chapterPagesCache.values) {
-        calculatedTotal += chapterPages.length;
+      final flattenedCount = _flattenedPages.length;
+      if (flattenedCount > _totalPages) {
+        _safeSetState(() {
+          _totalPages = flattenedCount;
+        });
+        print('Updated total pages to $_totalPages from flattened pages');
       }
-    }
-
-    // Update total pages with max of current and calculated
-    if (calculatedTotal > _totalPages) {
-      _safeSetState(() {
-        _totalPages = calculatedTotal;
-      });
-      print('Final total pages update: $_totalPages');
     }
 
     // Print debug info
@@ -939,10 +923,19 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     // Ensure we always have at least one page
     totalPages = math.max(1, totalPages);
 
-    // Update the total pages state
-    _safeSetState(() {
-      _totalPages = totalPages;
-    });
+    // Don't reduce the total pages if we already have a higher value
+    // This prevents navigation issues when pages are still being calculated
+    if (totalPages < _totalPages &&
+        _metadata != null &&
+        _metadata!.lastOpenedPage > totalPages) {
+      print(
+          'Keeping previous total pages value ($_totalPages) to avoid navigation issues');
+    } else {
+      // Update the total pages state
+      _safeSetState(() {
+        _totalPages = totalPages;
+      });
+    }
 
     print('Total pages final: $_totalPages');
   }
@@ -1157,9 +1150,10 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
           return PopScope(
             canPop: true,
-            onPopInvoked: (didPop) async {
+            onPopInvoked: (didPop) {
               if (didPop) {
-                await _handleBackPress();
+                context.read<ReaderBloc>().add(CloseReader());
+                context.read<FileBloc>().add(CloseViewer());
               }
             },
             child: GestureDetector(
@@ -1209,6 +1203,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                 size: ResponsiveConstants.getIconSize(context),
                               ),
                               onPressed: () {
+                                context.read<ReaderBloc>().add(CloseReader());
+                                context.read<FileBloc>().add(CloseViewer());
                                 Navigator.pop(context);
                                 WidgetsBinding.instance
                                     .addPostFrameCallback((_) {
@@ -1324,23 +1320,17 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                         left: _isSideNavVisible
                             ? 0
                             : -ResponsiveConstants.getSideNavWidth(context),
-                        child: GestureDetector(
-                          onHorizontalDragUpdate: (details) {
-                            if (details.delta.dx < 0) {
-                              // Only handle left swipes
-                              _closeSideNav();
-                            }
-                          },
-                          child: Container(
+                        child: Material(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? const Color(0xFF251B2F).withOpacity(0.98)
+                              : const Color(0xFFFAF9F7).withOpacity(0.98),
+                          child: SizedBox(
                             width: ResponsiveConstants.getSideNavWidth(context),
-                            color:
-                                Theme.of(context).brightness == Brightness.dark
-                                    ? const Color(0xFF251B2F).withOpacity(0.98)
-                                    : const Color(0xFFFAF9F7).withOpacity(0.98),
                             child: SafeArea(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  // Header with title and close button
                                   Container(
                                     padding: EdgeInsets.symmetric(
                                       horizontal:
@@ -1372,28 +1362,30 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                           ),
                                         ),
                                         const Spacer(),
-                                        IconButton(
-                                          padding: EdgeInsets.zero,
-                                          constraints: BoxConstraints(
-                                            minWidth:
+                                        // Use Material+InkWell for better tap feedback
+                                        Material(
+                                          color: Colors.transparent,
+                                          child: InkWell(
+                                            borderRadius: BorderRadius.circular(
                                                 ResponsiveConstants.getIconSize(
-                                                    context),
-                                            minHeight:
-                                                ResponsiveConstants.getIconSize(
-                                                    context),
-                                          ),
-                                          icon: Icon(
-                                            Icons.close,
-                                            color:
-                                                Theme.of(context).brightness ==
+                                                        context) /
+                                                    2),
+                                            onTap: _closeSideNav,
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.all(8.0),
+                                              child: Icon(
+                                                Icons.close,
+                                                color: Theme.of(context)
+                                                            .brightness ==
                                                         Brightness.dark
                                                     ? const Color(0xFFF2F2F7)
                                                     : const Color(0xFF1C1C1E),
-                                            size:
-                                                ResponsiveConstants.getIconSize(
-                                                    context),
+                                                size: ResponsiveConstants
+                                                    .getIconSize(context),
+                                              ),
+                                            ),
                                           ),
-                                          onPressed: _closeSideNav,
                                         ),
                                       ],
                                     ),
@@ -1413,20 +1405,22 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                     ),
                                     child: TabBar(
                                       controller: _tabController,
-                                      tabs: const [
+                                      tabs: [
                                         Tab(
                                           icon: Icon(Icons.menu_book_outlined,
                                               size: 20),
-                                          text: 'Chapters',
+                                          text: S.of(context).chapters,
                                         ),
                                         Tab(
-                                          icon: Icon(Icons.bookmark_outline,
+                                          icon: Icon(Icons.bookmark_border,
                                               size: 20),
-                                          text: 'Bookmarks',
+                                          text: S.of(context).bookmarks,
                                         ),
                                         Tab(
-                                          icon: Icon(Icons.grid_view, size: 20),
-                                          text: 'Pages',
+                                          icon: Icon(
+                                              Icons.photo_library_outlined,
+                                              size: 20),
+                                          text: S.of(context).pages,
                                         ),
                                       ],
                                       labelColor:
@@ -1465,55 +1459,71 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                         controller: _tabController,
                                         children: [
                                           // Chapters tab (Outline view)
-                                          OutlineView(
-                                            outlines: _createOutlineItems(),
-                                            currentPage: _currentPage,
-                                            totalPages: _totalPages,
-                                            onItemTap: (item) {
-                                              _navigateToChapter(
-                                                  item.pageNumber - 1);
-                                              _closeSideNav();
-                                            },
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: OutlineView(
+                                              outlines: _createOutlineItems(),
+                                              currentPage: _currentPage,
+                                              totalPages: _totalPages,
+                                              onItemTap: (item) {
+                                                print(
+                                                    "OUTLINE ITEM TAPPED: ${item.title}, page: ${item.pageNumber}");
+                                                // Use _jumpToPage directly instead of _navigateToChapter
+                                                // This fixes the issue where page numbers were being used as chapter indices
+                                                _jumpToPage(item.pageNumber);
+                                                _closeSideNav();
+                                              },
+                                            ),
                                           ),
 
                                           // Bookmarks tab (Markers view)
-                                          MarkersView(
-                                            markers: _createMarkerItems(),
-                                            currentPage: _currentPage,
-                                            totalPages: _totalPages,
-                                            onItemTap: (marker) {
-                                              // Navigate to the page where the highlight exists
-                                              _jumpToPage(marker.pageNumber);
-                                              _closeSideNav();
-                                            },
-                                            onDeleteMarker: (marker) {
-                                              // Delete the highlight
-                                              _removeHighlight(marker.id);
-                                            },
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: MarkersView(
+                                              markers: _createMarkerItems(),
+                                              currentPage: _currentPage,
+                                              totalPages: _totalPages,
+                                              onItemTap: (marker) {
+                                                print(
+                                                    "MARKER ITEM TAPPED: page: ${marker.pageNumber}");
+                                                _jumpToPage(marker.pageNumber);
+                                                _closeSideNav();
+                                              },
+                                              onDeleteMarker: (marker) {
+                                                // Delete the highlight
+                                                _removeHighlight(marker.id);
+                                              },
+                                            ),
                                           ),
 
                                           // Pages tab (Thumbnails view)
-                                          ThumbnailsView(
-                                            totalPages: _totalPages,
-                                            currentPage: _currentPage,
-                                            onPageSelected: (pageNum) {
-                                              _jumpToPage(pageNum);
-                                              _closeSideNav();
-                                            },
-                                            getThumbnail: (page) {
-                                              return Container(
-                                                width: double.infinity,
-                                                height: double.infinity,
-                                                color: Colors.grey[200],
-                                                child: Center(
-                                                  child: Text(
-                                                    'Page $page',
-                                                    style: const TextStyle(
-                                                        color: Colors.black54),
+                                          Material(
+                                            color: Colors.transparent,
+                                            child: ThumbnailsView(
+                                              totalPages: _totalPages,
+                                              currentPage: _currentPage,
+                                              onPageSelected: (pageNum) {
+                                                print(
+                                                    "THUMBNAIL TAPPED: page: $pageNum");
+                                                _jumpToPage(pageNum);
+                                                _closeSideNav();
+                                              },
+                                              getThumbnail: (page) {
+                                                return Container(
+                                                  color: Colors.white,
+                                                  child: Center(
+                                                    child: Text(
+                                                      'Page $page',
+                                                      style: const TextStyle(
+                                                        fontSize: 14,
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
                                                   ),
-                                                ),
-                                              );
-                                            },
+                                                );
+                                              },
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -1648,12 +1658,17 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
                       // Overlay to close side nav when tapping outside
                       if (_isSideNavVisible)
-                        Positioned.fill(
+                        Positioned(
+                          left: ResponsiveConstants.getSideNavWidth(context),
+                          top: 0,
+                          right: 0,
+                          bottom: 0,
                           child: GestureDetector(
                             onTap: _closeSideNav,
+                            behavior: HitTestBehavior.opaque,
                             child: Container(
-                              color: Colors
-                                  .transparent, // Changed from black with opacity to transparent
+                              color: Colors.black.withOpacity(
+                                  0.1), // Slightly darken the right side
                             ),
                           ),
                         ),
@@ -1729,7 +1744,8 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                 10.0,
                           ),
                           height:
-                              ResponsiveConstants.getBottomBarHeight(context),
+                              ResponsiveConstants.getBottomBarHeight(context) +
+                                  20,
                           child: Row(
                             children: [
                               // Add bookmark button
@@ -1822,8 +1838,20 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
                                           max: _sliderMax,
                                           onChangeStart:
                                               _handleSliderChangeStart,
-                                          onChanged: _handleSliderChanged,
-                                          onChangeEnd: _handleSliderChangeEnd,
+                                          onChanged: (value) {
+                                            // Extra protection against invalid values
+                                            if (value >= 1 &&
+                                                value <= _sliderMax) {
+                                              _handleSliderChanged(value);
+                                            }
+                                          },
+                                          onChangeEnd: (value) {
+                                            // Extra protection against invalid values
+                                            if (value >= 1 &&
+                                                value <= _sliderMax) {
+                                              _handleSliderChangeEnd(value);
+                                            }
+                                          },
                                         ),
                                       ),
                                     );
@@ -2719,7 +2747,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       for (final pos in positions) {
         if (pos.itemLeadingEdge <= 0.0 && pos.itemTrailingEdge > 0.2) {
           // Keep consistent with _onScroll calculation
-          return pos.index + 2;
+          return pos.index + 1;
         }
       }
       return _currentPage;
@@ -2967,12 +2995,20 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
     final localOffset = details.localPosition;
     double tappedRatio = (localOffset.dx / width).clamp(0.0, 1.0);
-    int newPage = ((tappedRatio * (_totalPages - 1)) + 1).round();
-    newPage = newPage.clamp(1, _totalPages);
+
+    // Make sure we use the actual total pages, which could be more than _totalPages
+    final actualTotalPages = math.max(_totalPages, _flattenedPages.length);
+    int newPage = ((tappedRatio * (actualTotalPages - 1)) + 1).round();
+    newPage = newPage.clamp(1, actualTotalPages);
 
     _safeSetState(() {
       _currentPage = newPage;
       _isSliderInteracting = true;
+
+      // Update _totalPages if needed
+      if (actualTotalPages > _totalPages) {
+        _totalPages = actualTotalPages;
+      }
     });
 
     // Use unified navigation with animation
@@ -2989,34 +3025,62 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
   void _handleSliderChangeStart(double value) {
     _sliderDwellTimer?.cancel();
+
+    // Get actual total pages which might be more than _totalPages
+    final actualTotalPages = math.max(_totalPages, _flattenedPages.length);
+
     _safeSetState(() {
       _isSliderInteracting = true;
-      _currentPage = value.toInt().clamp(1, _totalPages);
+      _currentPage = value.toInt().clamp(1, actualTotalPages);
+
+      // Update _totalPages if needed
+      if (actualTotalPages > _totalPages) {
+        _totalPages = actualTotalPages;
+      }
     });
-    print('SLIDER: Started interaction at page $_currentPage');
+    print(
+        'SLIDER: Started interaction at page $_currentPage (total: $actualTotalPages)');
   }
 
   void _handleSliderChanged(double value) {
     if (!_isSliderInteracting) return;
 
-    final targetPage = value.toInt().clamp(1, _totalPages);
+    // Get actual total pages which might be more than _totalPages
+    final actualTotalPages = math.max(_totalPages, _flattenedPages.length);
+
+    final targetPage = value.toInt().clamp(1, actualTotalPages);
     if (targetPage != _currentPage) {
       _safeSetState(() {
         _currentPage = targetPage;
+
+        // Update _totalPages if needed
+        if (actualTotalPages > _totalPages) {
+          _totalPages = actualTotalPages;
+        }
       });
     }
   }
 
   void _handleSliderChangeEnd(double value) {
-    final targetPage = value.toInt().clamp(1, _totalPages);
+    // Get actual total pages which might be more than _totalPages
+    final actualTotalPages = math.max(_totalPages, _flattenedPages.length);
+
+    final targetPage = value.toInt().clamp(1, actualTotalPages);
 
     // Lock position updates during slider navigation
     _lockPositionForDuration(const Duration(milliseconds: 800));
 
-    print('SLIDER: Ending at page $targetPage');
+    print('SLIDER: Ending at page $targetPage (total: $actualTotalPages)');
 
     // Store this as the last known page
     _lastKnownPage = targetPage;
+
+    // Update _totalPages if needed
+    if (actualTotalPages > _totalPages) {
+      _safeSetState(() {
+        _totalPages = actualTotalPages;
+      });
+    }
 
     // Navigate to the target page using our unified navigation
     _navigateToPageUnified(targetPage, animate: true);
@@ -3039,8 +3103,7 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
     try {
       final response = await _geminiService.askAboutText(
         selectedText ?? '',
-        customPrompt: message ??
-            'Can you explain what the text is about? After that share your thoughts in a single open ended question in the same paragraph, make the question short and concise.',
+        customPrompt: message ?? S.of(context).explainTextAndAskQuestion,
         bookTitle: bookTitle,
         currentPage: currentPage,
         totalPages: totalPages,
@@ -3048,96 +3111,34 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
 
       if (!mounted) return;
 
+      // Always store the response, even if the chat widget is not visible
       if (_floatingChatKey.currentState != null) {
         _floatingChatKey.currentState!.addAiResponse(response);
+      } else {
+        // Chat widget may have been closed, but response is already saved by GeminiService
+        print(
+            'Chat widget not visible, but message was saved by GeminiService for later viewing');
       }
     } catch (e) {
       if (!mounted) return;
-      Utils.showErrorSnackBar(context, 'Failed to get AI response');
+      Utils.showErrorSnackBar(context, S.of(context).failedToGetAIResponse);
     }
-  }
-
-  Future<bool> _handleBackPress() async {
-    try {
-      if (_metadata != null) {
-        await _updateMetadata(_currentPage);
-
-        if (mounted) {
-          context.read<ReaderBloc>().add(CloseReader());
-          context.read<FileBloc>().add(CloseViewer());
-        }
-      }
-      return true;
-    } catch (e) {
-      print('Error handling back press: $e');
-      return false;
-    }
-  }
-
-  // Find and navigate to the first page of a chapter
-  void _navigateToChapter(int chapterIndex) {
-    if (chapterIndex < 0 || chapterIndex >= _flatChapters.length) return;
-
-    // Find the first page for this chapter based on flattened pages
-    int pageNumber = 1; // Default to first page
-
-    // Look through all the flattened pages to find the first one from this chapter
-    if (_flattenedPages.isNotEmpty) {
-      for (int i = 0; i < _flattenedPages.length; i++) {
-        if (_flattenedPages[i].chapterIndex == chapterIndex) {
-          pageNumber = i + 1; // +1 because page numbers are 1-based
-          break;
-        }
-      }
-    } else {
-      // If flattened pages aren't available, calculate based on chapter cache
-      int currentCount = 0;
-      for (int i = 0; i < chapterIndex; i++) {
-        currentCount += _chapterPagesCache[i]?.length ?? 0;
-      }
-      pageNumber = currentCount + 1;
-    }
-
-    print('Navigating to chapter $chapterIndex at page $pageNumber');
-
-    // Based on layout mode, use the appropriate navigation method
-    if (_layoutMode == EpubLayoutMode.longStrip) {
-      if (_scrollController.isAttached) {
-        _scrollController.scrollTo(
-          index: pageNumber - 1,
-          duration: const Duration(milliseconds: 300),
-        );
-      }
-    } else if (_layoutMode == EpubLayoutMode.vertical) {
-      _verticalPageController.animateToPage(
-        pageNumber - 1,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else if (_layoutMode == EpubLayoutMode.horizontal) {
-      _horizontalPageController.animateToPage(
-        pageNumber - 1,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-
-    // Update state
-    _safeSetState(() {
-      _currentPage = pageNumber;
-      _currentChapterIndex = chapterIndex;
-    });
-
-    // Ensure the chapter is loaded
-    _loadChapter(chapterIndex);
   }
 
   // Helper method to create outline items from EPUB chapters
   List<OutlineItem> _createOutlineItems() {
     List<OutlineItem> items = [];
 
+    print('Creating outline items from ${_flatChapters.length} chapters');
+    print('Flattened pages available: ${_flattenedPages.isNotEmpty}');
+
+    if (_flatChapters.isEmpty) {
+      return items;
+    }
+
     for (int i = 0; i < _flatChapters.length; i++) {
       final chapter = _flatChapters[i];
+      final chapterTitle = chapter.Title ?? 'Chapter ${i + 1}';
 
       // Calculate actual page number for this chapter
       int pageNumber = 1;
@@ -3146,21 +3147,22 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
         for (int j = 0; j < _flattenedPages.length; j++) {
           if (_flattenedPages[j].chapterIndex == i) {
             pageNumber = j + 1;
-            break;
           }
         }
-      } else {
-        // If flattened pages not ready, estimate based on chapter cache
-        int currentCount = 0;
-        for (int j = 0; j < i; j++) {
-          currentCount += _chapterPagesCache[j]?.length ?? 0;
-        }
-        pageNumber = currentCount + 1;
       }
+
+      int currentCount = 0;
+      for (int j = 0; j < i; j++) {
+        currentCount += _chapterPagesCache[j]?.length ?? 0;
+      }
+      pageNumber = currentCount + 1;
+
+      // Ensure page number is within valid range
+      pageNumber = math.max(1, math.min(pageNumber, _totalPages));
 
       // Create outline item with the chapter title and subtitle
       items.add(OutlineItem(
-        title: chapter.Title ?? 'Chapter ${i + 1}',
+        title: chapterTitle,
         subtitle: '', // Could put estimated page count here if desired
         pageNumber: pageNumber,
         level: 0, // Top level for now, could parse nested chapters later
@@ -3393,7 +3395,9 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
             ),
             const SizedBox(height: 16),
             Text(
-              _loadingMessage.isNotEmpty ? _loadingMessage : 'Loading...',
+              _loadingMessage.isNotEmpty
+                  ? _loadingMessage
+                  : S.of(context).loading,
               style: TextStyle(
                 color: textColor,
                 fontSize: 16,
@@ -3420,40 +3424,65 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
   // Update the navigation method to handle chapter tracking
   Future<void> _navigateToPageUnified(int targetPage,
       {bool animate = true}) async {
-    // Lock position updates during navigation
-    _lockPositionForDuration(const Duration(milliseconds: 500));
+    // Ensure all pagination is complete for accurate navigation
+    await _ensureFullPagination();
 
-    // Clamp to valid range
-    final page = targetPage.clamp(1, _totalPages > 0 ? _totalPages : 1);
+    // Validate the page number against our most accurate total pages count
+    final actualTotalPages = math.max(_totalPages, _flattenedPages.length);
+    targetPage = targetPage.clamp(1, math.max(1, actualTotalPages));
 
-    // Log navigation for all modes
-    print('NAVIGATION: Going to page $page in $_layoutMode mode');
+    // Log detailed navigation info for debugging
+    print('NAVIGATION: Going to page $targetPage in $_layoutMode mode');
+    print(
+        'NAVIGATION: Total pages: $_totalPages, Flattened pages: ${_flattenedPages.length}');
+    print(
+        'NAVIGATION: Current chapter: $_currentChapterIndex, Total chapters: ${_flatChapters.length}');
 
     // Update state immediately for feedback
     _safeSetState(() {
-      _currentPage = page;
-      // Also update last known page
-      _lastKnownPage = page;
+      _currentPage = targetPage;
+      _lastKnownPage = targetPage;
+
+      // Ensure total pages is updated if needed
+      if (actualTotalPages > _totalPages) {
+        _totalPages = actualTotalPages;
+      }
     });
+
+    // Figure out which chapter this page belongs to
+    if (_flattenedPages.isNotEmpty && targetPage <= _flattenedPages.length) {
+      final targetPageInfo = _flattenedPages[targetPage - 1];
+
+      // Update the current chapter for context
+      _safeSetState(() {
+        _currentChapterIndex = targetPageInfo.chapterIndex;
+      });
+
+      print(
+          'NAVIGATION: Target page belongs to chapter ${targetPageInfo.chapterIndex}');
+    }
 
     try {
       switch (_layoutMode) {
         case EpubLayoutMode.longStrip:
-          await _navigateToLongStripPage(page, animate: animate);
+          await _navigateToLongStripPage(targetPage, animate: animate);
           break;
 
         case EpubLayoutMode.vertical:
-          await _navigateToVerticalPage(page, animate: animate);
+          await _navigateToVerticalPage(targetPage, animate: animate);
           break;
 
         case EpubLayoutMode.horizontal:
         case EpubLayoutMode.facing:
-          await _navigateToHorizontalPage(page, animate: animate);
+          await _navigateToHorizontalPage(targetPage, animate: animate);
           break;
       }
 
       // Update metadata
-      await _updateMetadata(page);
+      await _updateMetadata(targetPage);
+
+      print(
+          'NAVIGATION: Navigation to page $targetPage completed successfully');
     } catch (e) {
       print('NAVIGATION: Error navigating to page: $e');
     }
@@ -3466,17 +3495,53 @@ class _EPUBViewerScreenState extends State<EPUBViewerScreen>
       return;
     }
 
-    final index = page - 1;
+    // Ensure we have a valid index within bounds and that flattened pages are populated
+    if (_flattenedPages.isEmpty) {
+      print(
+          'NAVIGATION: Cannot navigate in long strip mode - flattened pages not ready');
+      // Attempt to force pagination completion
+      await _ensureFullPagination();
+    }
+
+    // Double-check again after pagination
+    if (_flattenedPages.isEmpty) {
+      print('NAVIGATION: Still cannot navigate - flattened pages unavailable');
+      return;
+    }
+
+    // Get proper index for the requested page (0-based index)
+    final maxIndex = math.max(0, _flattenedPages.length - 1);
+    final index = math.min(page - 1, maxIndex);
+
+    print(
+        'NAVIGATION: Long strip navigation to page $page (index: $index) out of ${_flattenedPages.length} pages');
+
     try {
       if (animate) {
-        await _scrollController.scrollTo(
-          index: index,
-          duration: const Duration(milliseconds: 300),
-        );
+        // Use scrollToItem instead of scrollTo when possible for more reliable positioning
+        if (_scrollController.isAttached) {
+          await _scrollController.scrollTo(
+            index: index,
+            duration: const Duration(milliseconds: 300),
+            alignment: 0.0, // Position at the top of the viewport
+          );
+          print('NAVIGATION: Scrolled to item $index successfully');
+        }
       } else {
         _scrollController.jumpTo(index: index);
+        print('NAVIGATION: Jumped to item $index');
       }
-      print('NAVIGATION: Long strip navigation complete to page $page');
+
+      // Update current page and chapter info
+      if (_flattenedPages.isNotEmpty && index < _flattenedPages.length) {
+        final targetPage = _flattenedPages[index];
+        _safeSetState(() {
+          _currentChapterIndex = targetPage.chapterIndex;
+        });
+      }
+
+      print(
+          'NAVIGATION: Long strip navigation complete to page $page (index: $index)');
     } catch (e) {
       print('NAVIGATION: Error in long strip navigation: $e');
     }
@@ -4049,11 +4114,9 @@ class OutlineView extends StatelessWidget {
       currentChapterIndex = 0;
     }
 
-    return ListView.separated(
+    return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 16),
       itemCount: outlines.length,
-      separatorBuilder: (context, index) =>
-          const Divider(height: 1, indent: 16, endIndent: 16),
       itemBuilder: (context, index) {
         final item = outlines[index];
         final isCurrentChapter = index == currentChapterIndex;
@@ -4061,85 +4124,94 @@ class OutlineView extends StatelessWidget {
         // Create proper indentation based on chapter level
         double leftPadding = 16.0 + (item.level * 16.0);
 
-        return InkWell(
-          onTap: () => onItemTap(item),
-          child: Container(
-            decoration: BoxDecoration(
-              color: isCurrentChapter
-                  ? (Theme.of(context).colorScheme.primary.withOpacity(0.08))
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            margin: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(leftPadding, 14, 16, 14),
-              child: Row(
-                children: [
-                  // Left indicator for current chapter
-                  if (isCurrentChapter)
-                    Container(
-                      width: 4,
-                      height: 24,
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    )
-                  else
-                    const SizedBox(width: 16),
-
-                  // Chapter title
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: TextStyle(
-                            color: isCurrentChapter
-                                ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFFF2F2F7)
-                                    : const Color(0xFF1C1C1E),
-                            fontSize: 15,
-                            fontWeight: isCurrentChapter
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            letterSpacing: -0.2,
-                          ),
+        // Wrap with Material widget for proper ink effects
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              // Make sure this is being called and log the correct information
+              debugPrint(
+                  "OutlineView: Chapter '${item.title}' tapped, navigating to page ${item.pageNumber}");
+              onItemTap(item);
+            },
+            child: Container(
+              decoration: BoxDecoration(
+                color: isCurrentChapter
+                    ? (Theme.of(context).colorScheme.primary.withOpacity(0.08))
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              margin: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(leftPadding, 14, 16, 14),
+                child: Row(
+                  children: [
+                    // Left indicator for current chapter
+                    if (isCurrentChapter)
+                      Container(
+                        width: 4,
+                        height: 24,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                      ],
-                    ),
-                  ),
+                      )
+                    else
+                      const SizedBox(width: 16),
 
-                  // Page number
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: isCurrentChapter
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF2C2C2E)
-                              : const Color(0xFFF8F1F1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      '${item.pageNumber}',
-                      style: TextStyle(
-                        color: isCurrentChapter
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFFAA96B6)
-                                : const Color(0xFF6E6E73),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                    // Chapter title
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.title,
+                            style: TextStyle(
+                              color: isCurrentChapter
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? const Color(0xFFF2F2F7)
+                                      : const Color(0xFF1C1C1E),
+                              fontSize: 15,
+                              fontWeight: isCurrentChapter
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                ],
+
+                    // Page number
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isCurrentChapter
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).brightness == Brightness.dark
+                                ? const Color(0xFF2C2C2E)
+                                : const Color(0xFFF8F1F1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${item.pageNumber}',
+                        style: TextStyle(
+                          color: isCurrentChapter
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : Theme.of(context).brightness == Brightness.dark
+                                  ? const Color(0xFFAA96B6)
+                                  : const Color(0xFF6E6E73),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -4211,11 +4283,9 @@ class MarkersView extends StatelessWidget {
     final sortedMarkers = List<MarkerItem>.from(markers)
       ..sort((a, b) => a.pageNumber.compareTo(b.pageNumber));
 
-    return ListView.separated(
+    return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 16),
       itemCount: sortedMarkers.length,
-      separatorBuilder: (context, index) =>
-          const Divider(height: 1, indent: 16, endIndent: 16),
       itemBuilder: (context, index) {
         final marker = sortedMarkers[index];
         final isCurrentPage = marker.pageNumber == currentPage;
@@ -4223,8 +4293,10 @@ class MarkersView extends StatelessWidget {
         return Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => onItemTap(marker),
-            borderRadius: BorderRadius.circular(4),
+            onTap: () {
+              print("MARKER TAPPED DIRECTLY: page ${marker.pageNumber}");
+              onItemTap(marker);
+            },
             child: Container(
               decoration: BoxDecoration(
                 color: isCurrentPage
@@ -4288,20 +4360,23 @@ class MarkersView extends StatelessWidget {
                               ),
                             ),
                             const Spacer(),
-                            IconButton(
-                              icon: Icon(
-                                Icons.delete_outline,
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? const Color(0xFF8E8E93)
-                                    : const Color(0xFF6E6E73),
-                                size: 18,
-                              ),
-                              onPressed: () => onDeleteMarker(marker),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                minWidth: 24,
-                                minHeight: 24,
+                            Material(
+                              color: Colors.transparent,
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () => onDeleteMarker(marker),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4.0),
+                                  child: Icon(
+                                    Icons.delete_outline,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? const Color(0xFF8E8E93)
+                                        : const Color(0xFF6E6E73),
+                                    size: 18,
+                                  ),
+                                ),
                               ),
                             ),
                           ],
@@ -4405,86 +4480,111 @@ class ThumbnailsView extends StatelessWidget {
         final isCurrentPage = pageNumber == currentPage;
 
         return Material(
-          elevation: isCurrentPage ? 4 : 1,
-          shadowColor: Theme.of(context).colorScheme.primary.withOpacity(0.4),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            decoration: BoxDecoration(
-              border: isCurrentPage
-                  ? Border.all(
-                      color: Theme.of(context).colorScheme.primary,
-                      width: 2.5,
-                    )
-                  : Border.all(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.grey.shade800
-                          : Colors.grey.shade300,
-                      width: 1,
-                    ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(isCurrentPage ? 9.5 : 11),
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () {
+              print(
+                  "THUMBNAIL DIRECT TAP: Navigating to page $pageNumber of $totalPages");
+
+              // Direct debug to check if this is being called
+              debugPrint('ThumbnailsView: tapped page $pageNumber');
+
+              // Call the onPageSelected with the page number
+              onPageSelected(pageNumber);
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: isCurrentPage
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 2.5,
+                      )
+                    : Border.all(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey.shade700
+                            : Colors.grey.shade300,
+                        width: 1,
+                      ),
+                boxShadow: isCurrentPage
+                    ? [
+                        BoxShadow(
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.3),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        )
+                      ]
+                    : null,
+              ),
               child: Column(
                 children: [
                   Expanded(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        // Thumbnail
-                        InkWell(
-                          onTap: () => onPageSelected(pageNumber),
-                          child: Hero(
-                            tag: 'page_$pageNumber',
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(11),
+                        topRight: Radius.circular(11),
+                      ),
+                      child: Stack(
+                        children: [
+                          Positioned.fill(
                             child: getThumbnail(pageNumber),
                           ),
-                        ),
-
-                        // Current page indicator
-                        if (isCurrentPage)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.visibility,
-                                color: Theme.of(context).colorScheme.onPrimary,
-                                size: 14,
+                          // Add a visual indicator for tappability
+                          if (isCurrentPage)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.visibility,
+                                  color: Colors.white,
+                                  size: 12,
+                                ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-
-                  // Page number
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
                       color: isCurrentPage
-                          ? Theme.of(context).colorScheme.primary
+                          ? Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withOpacity(0.1)
                           : Theme.of(context).brightness == Brightness.dark
-                              ? const Color(0xFF2C2C2E)
-                              : const Color(0xFFF8F1F1),
+                              ? Colors.grey.shade800
+                              : Colors.grey.shade100,
+                      borderRadius: BorderRadius.only(
+                        bottomLeft: Radius.circular(11),
+                        bottomRight: Radius.circular(11),
+                      ),
                     ),
                     child: Text(
                       'Page $pageNumber',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
+                        color: isCurrentPage
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white70
+                                : Colors.black87,
+                        fontSize: 12,
                         fontWeight:
                             isCurrentPage ? FontWeight.w600 : FontWeight.w500,
-                        color: isCurrentPage
-                            ? Theme.of(context).colorScheme.onPrimary
-                            : Theme.of(context).brightness == Brightness.dark
-                                ? const Color(0xFFAA96B6)
-                                : Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ),

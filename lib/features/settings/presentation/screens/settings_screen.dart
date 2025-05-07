@@ -4,6 +4,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/theme_bloc.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
+import 'package:read_leaf/features/settings/domain/models/ai_model.dart';
 import '../../../auth/presentation/blocs/auth_bloc.dart';
 import '../../../auth/presentation/blocs/auth_event.dart';
 import '../../../auth/presentation/blocs/auth_state.dart';
@@ -11,6 +12,7 @@ import '../../../auth/presentation/screens/profile_screen.dart';
 import '../../../auth/data/auth_dialog_service.dart';
 import 'package:read_leaf/nav_screen.dart';
 import 'package:flutter/rendering.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -26,14 +28,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _launchURL(String url) async {
     if (!await launchUrl(Uri.parse(url))) {
-      throw Exception('Could not launch $url');
+      throw Exception(S.of(context).couldNotLaunch(url));
     }
   }
 
   void _shareApp() {
     Share.share(
-      'Check out this amazing ebook reader app!',
-      subject: 'ReadLeaf App',
+      S.of(context).checkOutThisApp,
+      subject: S.of(context).appName,
     );
   }
 
@@ -103,8 +105,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return _buildSettingsCard(
       icon: Icons.login,
-      title: 'Sign In / Sign Up',
-      subtitle: 'Sync your reading progress and preferences',
+      title: S.of(context).signInSignUp,
+      subtitle: S.of(context).syncReadingProgress,
       onTap: () => _showAuthDialog(context),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),
     );
@@ -178,13 +180,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         decoration: BoxDecoration(
                           color: Theme.of(context).brightness == Brightness.dark
                               ? Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withOpacity(0.8)
+                                  .colorScheme
+                                  .primaryContainer
+                                  .withOpacity(0.8)
                               : Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withOpacity(0.2),
+                                  .colorScheme
+                                  .primaryContainer
+                                  .withOpacity(0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -325,6 +327,193 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // Language selection button
+  Widget _buildLanguageSelector(
+      BuildContext context, SettingsState settingsState) {
+    return _buildSettingsCard(
+      icon: Icons.language,
+      title: S.of(context).language,
+      subtitle:
+          settingsState.locale.languageCode == 'en' ? 'English' : 'Tiếng Việt',
+      onTap: () => _showLanguageSelector(context, settingsState),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+    );
+  }
+
+  void _showLanguageSelector(
+      BuildContext context, SettingsState settingsState) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.hideNavBar(true);
+    });
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: Row(
+                children: [
+                  Text(
+                    S.of(context).selectLanguage,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const Spacer(),
+                  Material(
+                    borderRadius: BorderRadius.circular(50),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withOpacity(0.4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(50),
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+            ),
+            _buildLanguageOption(
+              context,
+              'English',
+              const Locale('en', ''),
+              settingsState.locale.languageCode == 'en',
+            ),
+            _buildLanguageOption(
+              context,
+              'Tiếng Việt',
+              const Locale('vi', ''),
+              settingsState.locale.languageCode == 'vi',
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    ).whenComplete(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NavScreen.globalKey.currentState?.hideNavBar(false);
+      });
+    });
+  }
+
+  Widget _buildLanguageOption(
+    BuildContext context,
+    String name,
+    Locale locale,
+    bool isSelected,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.2)
+              : Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            width: isSelected ? 2 : 1,
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outline.withOpacity(0.1),
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              context.read<SettingsBloc>().add(LocaleChanged(locale));
+              Navigator.pop(context);
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Text(
+                        locale.languageCode.toUpperCase(),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Text(
+                    name,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                  const Spacer(),
+                  if (isSelected)
+                    Icon(
+                      Icons.check_circle,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showThemeSelector(BuildContext context, ThemeState themeState) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       NavScreen.globalKey.currentState?.hideNavBar(true);
@@ -369,7 +558,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Select Theme',
+                    S.of(context).selectTheme,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
@@ -411,7 +600,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _buildSystemThemeOption(context, themeState),
                     const SizedBox(height: 32),
-                    _buildThemeSectionHeader(context, 'Default Themes'),
+                    _buildThemeSectionHeader(
+                        context, S.of(context).defaultThemes),
                     const SizedBox(height: 16),
                     _buildModernThemeOption(
                       context,
@@ -459,7 +649,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
                     const SizedBox(height: 32),
-                    _buildThemeSectionHeader(context, 'Light Themes'),
+                    _buildThemeSectionHeader(
+                        context, S.of(context).lightThemes),
                     const SizedBox(height: 16),
                     ...[
                       {
@@ -518,7 +709,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ],
                         )),
                     const SizedBox(height: 32),
-                    _buildThemeSectionHeader(context, 'Dark Themes'),
+                    _buildThemeSectionHeader(context, S.of(context).darkThemes),
                     const SizedBox(height: 16),
                     ...[
                       {
@@ -639,7 +830,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   child: Icon(
                     Icons.devices_rounded,
-                    color: Theme.of(context).colorScheme.primary,
+                    color: Theme.of(context).colorScheme.onSurface,
                     size: 24,
                   ),
                 ),
@@ -649,7 +840,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Follow Device Setting',
+                        S.of(context).followDeviceSetting,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -658,7 +849,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Automatically switch between light and dark theme',
+                        S.of(context).automaticallySwitchTheme,
                         style: TextStyle(
                           fontSize: 14,
                           color: Theme.of(context)
@@ -718,7 +909,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             fontSize: 16,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.5,
-            color: Theme.of(context).colorScheme.primary,
+            color: Theme.of(context).colorScheme.onSurface,
           ),
         ),
       ],
@@ -1054,6 +1245,291 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildAiModelCard(
+    BuildContext context,
+    AiModel selectedModel,
+    Map<AiModelType, String> apiKeys,
+  ) {
+    return _buildSettingsCard(
+      icon: Icons.smart_toy,
+      title: S.of(context).aiModel,
+      subtitle: selectedModel.name,
+      onTap: () => _showAiModelSelector(context, selectedModel, apiKeys),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+    );
+  }
+
+  void _showAiModelSelector(
+    BuildContext context,
+    AiModel selectedModel,
+    Map<AiModelType, String> apiKeys,
+  ) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NavScreen.globalKey.currentState?.hideNavBar(true);
+    });
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, -2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 12, bottom: 8),
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color:
+                      Theme.of(context).colorScheme.onSurface.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+              child: Row(
+                children: [
+                  Text(
+                    S.of(context).selectAiModel,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const Spacer(),
+                  Material(
+                    borderRadius: BorderRadius.circular(50),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest
+                        .withOpacity(0.4),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(50),
+                      onTap: () => Navigator.of(context).pop(),
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Icon(
+                          Icons.close_rounded,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(
+              height: 1,
+              thickness: 1,
+              color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: AiModel.availableModels.length,
+                itemBuilder: (context, index) {
+                  final model = AiModel.availableModels[index];
+                  return _buildAiModelOption(
+                    context,
+                    model,
+                    isSelected: model.type == selectedModel.type,
+                    apiKeys: apiKeys,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    ).whenComplete(() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        NavScreen.globalKey.currentState?.hideNavBar(false);
+      });
+    });
+  }
+
+  Widget _buildAiModelOption(
+    BuildContext context,
+    AiModel model, {
+    required bool isSelected,
+    required Map<AiModelType, String> apiKeys,
+  }) {
+    final theme = Theme.of(context);
+    final hasApiKey = model.requiresApiKey && apiKeys.containsKey(model.type);
+    final isServerModel = model.hostType == AiModelHostType.server;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.colorScheme.primaryContainer.withOpacity(0.2)
+              : theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            width: isSelected ? 2 : 1,
+            color: isSelected
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outline.withOpacity(0.1),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: theme.colorScheme.primary.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  )
+                ]
+              : null,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: isServerModel
+                ? null
+                : () {
+                    if (model.requiresApiKey && !hasApiKey) {
+                      _showApiKeyDialog(context, model);
+                    } else {
+                      context.read<SettingsBloc>().add(AiModelChanged(model));
+                      Navigator.pop(context);
+                    }
+                  },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.smart_toy,
+                          size: 18,
+                          color: theme.colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              model.name,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: isSelected
+                                    ? theme.colorScheme.primary
+                                    : theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              model.description,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: theme.colorScheme.onSurface
+                                    .withOpacity(0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (model.requiresApiKey && !isServerModel) ...[
+                        const SizedBox(width: 8),
+                        Icon(
+                          hasApiKey ? Icons.check_circle : Icons.key,
+                          size: 20,
+                          color: hasApiKey
+                              ? Colors.green
+                              : theme.colorScheme.onSurface.withOpacity(0.5),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showApiKeyDialog(BuildContext context, AiModel model) {
+    final controller = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Enter ${model.name} API Key'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: 'Enter your API key',
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            validator: (value) {
+              if (value == null || value.isEmpty) {
+                return 'Please enter your API key';
+              }
+              return null;
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                context.read<SettingsBloc>()
+                  ..add(AiModelApiKeyUpdated(controller.text))
+                  ..add(AiModelChanged(model));
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Close model selector
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1063,26 +1539,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
             return BlocBuilder<ThemeBloc, ThemeState>(
               builder: (context, themeState) {
                 return CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
+                  controller: _scrollController,
                   slivers: [
                     SliverAppBar(
                       pinned: true,
-                      expandedHeight: 120,
-                      flexibleSpace: FlexibleSpaceBar(
-                        title: Text(
-                          'Settings',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        centerTitle: false,
-                        titlePadding:
-                            const EdgeInsets.only(left: 16, bottom: 16),
-                      ),
+                      elevation: 0,
                       backgroundColor:
                           Theme.of(context).scaffoldBackgroundColor,
-                      elevation: 0,
+                      title: Text(
+                        S.of(context).settings,
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                      actions: [
+                        IconButton(
+                          icon: Icon(
+                            Icons.help_outline,
+                            size: 20,
+                            color: Theme.of(context).iconTheme.color,
+                          ),
+                          onPressed: () {},
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                     ),
                     SliverToBoxAdapter(
                       child: Padding(
@@ -1090,18 +1571,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSectionHeader('Account'),
+                            _buildSectionHeader(S.of(context).account),
                             BlocBuilder<AuthBloc, AuthState>(
                               builder: (context, state) {
                                 return _buildAccountSection(context, state);
                               },
                             ),
-                            _buildSectionHeader('Appearance'),
+                            _buildSectionHeader(S.of(context).appearance),
                             _buildThemeCard(
                               icon: themeState.isDarkMode
                                   ? Icons.dark_mode
                                   : Icons.light_mode,
-                              title: 'Theme',
+                              title: S.of(context).theme,
                               subtitle: themeState.currentThemeName,
                               value: themeState.isDarkMode,
                               onToggle: (value) =>
@@ -1110,11 +1591,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 _showThemeSelector(context, themeState);
                               },
                             ),
-                            _buildSectionHeader('Reading'),
+                            _buildLanguageSelector(context, settingsState),
+                            _buildSectionHeader(S.of(context).reading),
                             _buildSwitchSettingCard(
                               icon: Icons.hourglass_empty,
-                              title: 'Loading Screen',
-                              subtitle: 'Show book loading transition screen',
+                              title: S.of(context).loadingScreen,
+                              subtitle: S.of(context).showBookLoadingScreen,
                               value: settingsState.showLoadingScreen,
                               onChanged: (value) {
                                 context
@@ -1124,8 +1606,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             _buildSwitchSettingCard(
                               icon: Icons.notifications,
-                              title: 'Reading Reminders',
-                              subtitle: 'Get encouraged to continue reading',
+                              title: S.of(context).readingReminders,
+                              subtitle:
+                                  S.of(context).getEncouragedToContinueReading,
                               value: settingsState.remindersEnabled,
                               onChanged: (value) {
                                 context
@@ -1133,11 +1616,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     .add(RemindersToggled(value));
                               },
                             ),
-                            _buildSectionHeader('About'),
+                            _buildSectionHeader(S.of(context).aiModel),
+                            _buildAiModelCard(
+                              context,
+                              settingsState.selectedModel,
+                              settingsState.apiKeys,
+                            ),
+                            _buildSectionHeader(S.of(context).about),
                             _buildSettingsCard(
                               icon: Icons.coffee,
-                              title: 'Buy me a coffee',
-                              subtitle: 'Support the developer',
+                              title: S.of(context).buyMeACoffee,
+                              subtitle: S.of(context).supportTheDeveloper,
                               onTap: () =>
                                   _launchURL('https://www.buymeacoffee.com/'),
                               trailing:
@@ -1145,16 +1634,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                             _buildSettingsCard(
                               icon: Icons.code,
-                              title: 'Support this open source project',
-                              subtitle: 'Contribute on GitHub',
+                              title: S.of(context).supportOpenSource,
+                              subtitle: S.of(context).contributeOnGitHub,
                               onTap: () => _launchURL('https://github.com/'),
                               trailing:
                                   const Icon(Icons.arrow_forward_ios, size: 16),
                             ),
                             _buildSettingsCard(
                               icon: Icons.share,
-                              title: 'Share this app with friends',
-                              subtitle: 'Spread the word',
+                              title: S.of(context).shareWithFriends,
+                              subtitle: S.of(context).spreadTheWord,
                               onTap: _shareApp,
                               trailing:
                                   const Icon(Icons.arrow_forward_ios, size: 16),

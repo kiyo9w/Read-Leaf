@@ -12,6 +12,7 @@ import 'package:read_leaf/features/settings/data/sync/supabase_service.dart';
 import 'package:read_leaf/features/auth/presentation/widgets/auth_text_field.dart';
 import 'package:read_leaf/features/auth/presentation/widgets/auth_button.dart';
 import 'package:read_leaf/features/auth/data/user.dart' as app_models;
+import 'package:read_leaf/generated/l10n.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -71,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final state = context.read<AuthBloc>().state;
       if (state is! AuthAuthenticated) {
-        throw Exception('Not authenticated');
+        throw Exception(S.of(context).notAuthenticated);
       }
 
       String? avatarUrl;
@@ -82,7 +83,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
 
         if (avatarUrl == null) {
-          throw Exception('Failed to upload profile picture');
+          throw Exception(S.of(context).failedToUploadProfilePicture);
         }
       }
 
@@ -104,13 +105,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully')),
+          SnackBar(content: Text(S.of(context).profileUpdatedSuccessfully)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}')),
+          SnackBar(content: Text('${S.of(context).error}: ${e.toString()}')),
         );
       }
     } finally {
@@ -127,11 +128,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       // TODO: Implement password reset
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent')),
+        SnackBar(content: Text(S.of(context).passwordResetEmailSent)),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text('${S.of(context).error}: ${e.toString()}')),
       );
     }
   }
@@ -140,21 +141,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone.',
+        title: Text(S.of(context).deleteAccount),
+        content: Text(
+          S.of(context).deleteAccountConfirmation,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(S.of(context).cancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
-            child: const Text('Delete'),
+            child: Text(S.of(context).delete),
           ),
         ],
       ),
@@ -173,11 +174,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context.read<AuthBloc>().add(AuthSignOutRequested());
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Account deleted successfully')),
+        SnackBar(content: Text(S.of(context).accountDeletedSuccessfully)),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
+        SnackBar(content: Text('${S.of(context).error}: ${e.toString()}')),
       );
     }
   }
@@ -209,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildProfileContent(BuildContext context, AuthAuthenticated state) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profile'),
+        title: Text(S.of(context).profile),
         actions: [
           if (_isEditing)
             IconButton(
@@ -278,10 +279,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
                   AuthTextField(
                     controller: _usernameController,
-                    labelText: 'Username',
+                    labelText: S.of(context).username,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
-                        return 'Please enter a username';
+                        return S.of(context).pleaseEnterUsername;
                       }
                       return null;
                     },
@@ -301,21 +302,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 24),
                   if (_isEditing) ...[
                     AuthButton(
-                      text: 'Save Changes',
+                      text: S.of(context).saveChanges,
                       onPressed: _updateProfile,
                       isLoading: _isLoading,
                     ),
                     const SizedBox(height: 16),
                   ],
                   AuthButton(
-                    text: 'Reset Password',
+                    text: S.of(context).resetPassword,
                     onPressed: _resetPassword,
                     isOutlined: true,
                     icon: Icons.lock_reset,
                   ),
                   const SizedBox(height: 16),
                   AuthButton(
-                    text: 'Sign Out',
+                    text: S.of(context).signOut,
                     onPressed: () {
                       context.read<AuthBloc>().add(AuthSignOutRequested());
                       Navigator.of(context).pop();
@@ -329,7 +330,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextButton.styleFrom(
                       foregroundColor: Theme.of(context).colorScheme.error,
                     ),
-                    child: const Text('Delete Account'),
+                    child: Text(S.of(context).deleteAccount),
                   ),
                 ],
               ),

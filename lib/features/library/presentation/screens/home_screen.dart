@@ -20,6 +20,7 @@ import 'package:read_leaf/features/library/presentation/widgets/refresh_animatio
 import 'package:read_leaf/features/characters/presentation/widgets/minimized_character_slider.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
 import 'package:get_it/get_it.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -103,7 +104,7 @@ class HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      Utils.showErrorSnackBar(context, 'Error loading book of the day');
+      Utils.showErrorSnackBar(context, S.of(context).errorLoadingBookOfDay);
       print('Error loading book of the day: $e');
     }
   }
@@ -166,7 +167,7 @@ class HomeScreenState extends State<HomeScreen> {
           _isGeneratingMessage = false;
         });
       }
-      Utils.showErrorSnackBar(context, 'Error generating AI message');
+      Utils.showErrorSnackBar(context, S.of(context).errorGeneratingAiMessage);
       print('Error generating AI message: $e');
     }
   }
@@ -264,7 +265,7 @@ class HomeScreenState extends State<HomeScreen> {
               if (mounted) {
                 Utils.showUndoSnackBar(
                   context,
-                  'File deleted',
+                  S.of(context).fileDeleted,
                   () {
                     context.read<FileBloc>().add(const UndoRemoveFile());
                   },
@@ -301,77 +302,72 @@ class HomeScreenState extends State<HomeScreen> {
                 SliverAppBar(
                   floating: true,
                   snap: true,
-                  elevation: _dragOffset > 0 ? 0 : null,
-                  backgroundColor: _dragOffset > 0
-                      ? Colors.transparent
-                      : Theme.of(context).appBarTheme.backgroundColor,
-                  title: AnimatedOpacity(
-                    opacity: _dragOffset > 0 ? 0.0 : 1.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: Row(
+                  elevation: 0,
+                  backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+                  title: Row(
+                    children: [
+                      Image.asset(
+                        'assets/images/app_logo/logo_nobg.png',
+                        width: 36,
+                        height: 36,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        S.of(context).leafyReader,
+                        style:
+                            Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    if (_isCharacterSliderMinimized)
+                      MinimizedCharacterSlider(
+                        inAppBar: true,
+                        onTap: () {
+                          setState(() {
+                            _isCharacterSliderMinimized = false;
+                          });
+                        },
+                      ),
+                    Stack(
                       children: [
-                        Image.asset(
-                          'assets/images/app_logo/logo_nobg.png',
-                          width: 72,
-                          height: 72,
+                        IconButton(
+                          icon: Icon(
+                            Icons.card_giftcard,
+                            color: Theme.of(context).iconTheme.color,
+                            size: 20,
+                          ),
+                          onPressed: () {},
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Leafy reader',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).primaryColor,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              '3',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                  actions: [
-                    AnimatedOpacity(
-                      opacity: _dragOffset > 0 ? 0.0 : 1.0,
-                      duration: const Duration(milliseconds: 200),
-                      child: Row(
-                        children: [
-                          if (_isCharacterSliderMinimized)
-                            MinimizedCharacterSlider(
-                              inAppBar: true,
-                              onTap: () {
-                                setState(() {
-                                  _isCharacterSliderMinimized = false;
-                                });
-                              },
-                            ),
-                          Stack(
-                            children: [
-                              IconButton(
-                                icon: Icon(Icons.card_giftcard,
-                                    color: Theme.of(context).iconTheme.color),
-                                onPressed: () {},
-                              ),
-                              Positioned(
-                                right: 8,
-                                top: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Theme.of(context).primaryColor,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Text(
-                                    '3',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.more_vert,
-                                color: Theme.of(context).iconTheme.color),
-                            onPressed: () {},
-                          ),
-                        ],
+                    IconButton(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: Theme.of(context).iconTheme.color,
+                        size: 20,
                       ),
+                      onPressed: () {},
                     ),
                   ],
                 ),
@@ -386,7 +382,7 @@ class HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Last read',
+                            S.of(context).lastRead,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 12),
@@ -428,11 +424,11 @@ class HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                         child: Text(
-                          'Your books',
-                          style: TextStyle(
+                          S.of(context).yourBooks,
+                          style: const TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
                           ),
@@ -496,11 +492,11 @@ class HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
                           child: Text(
-                            'Book of the day',
-                            style: TextStyle(
+                            S.of(context).bookOfTheDay,
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                             ),
@@ -590,7 +586,7 @@ class HomeScreenState extends State<HomeScreen> {
                               color: Theme.of(context).colorScheme.onSurface),
                           const SizedBox(width: 8),
                           Text(
-                            'Add book',
+                            S.of(context).addBook,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onSurface,
                               fontSize: 16,
