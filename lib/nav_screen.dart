@@ -172,7 +172,7 @@ class _NavScreenState extends State<NavScreen> {
                 },
               ),
               // Add debug connectivity widget in development mode
-              if (kDebugMode) const TestConnectivityWidget(),
+              // if (kDebugMode) const TestConnectivityWidget(),
             ],
           ),
         ),
