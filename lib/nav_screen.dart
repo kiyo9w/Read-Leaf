@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:persistent_bottom_nav_bar_v2/persistent_bottom_nav_bar_v2.dart';
 import 'package:read_leaf/features/library/presentation/screens/home_screen.dart';
@@ -10,6 +11,8 @@ import 'package:read_leaf/features/characters/presentation/screens/character_scr
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
 import 'package:read_leaf/features/settings/presentation/blocs/settings_bloc.dart';
+import 'package:read_leaf/widgets/test_connectivity_widget.dart';
+import 'package:read_leaf/widgets/connection_restored_notification.dart';
 
 class NavScreen extends StatefulWidget {
   const NavScreen({super.key});
@@ -37,9 +40,7 @@ class _NavScreenState extends State<NavScreen> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final activeColor = isDarkMode
-        ? Colors.white
-        : Colors.black;
+    final activeColor = isDarkMode ? Colors.white : Colors.black;
     final inactiveColor = isDarkMode
         ? Colors.white.withOpacity(0.5)
         : Colors.black.withOpacity(0.5);
@@ -92,80 +93,88 @@ class _NavScreenState extends State<NavScreen> {
           }
         }
       },
-      child: Scaffold(
-        body: ValueListenableBuilder<bool>(
-          valueListenable: _hideNavBarNotifier,
-          builder: (context, hideNavBar, child) {
-            return PersistentTabView(
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              hideNavigationBar: hideNavBar,
-              tabs: [
-                PersistentTabConfig(
-                  screen: HomeScreen(),
-                  item: ItemConfig(
-                    icon: const Icon(Icons.home),
-                    inactiveIcon: const Icon(Icons.home_outlined),
-                    iconSize: widget.iconsize,
-                    title: "Home",
-                    activeForegroundColor: activeColor,
-                    inactiveForegroundColor: inactiveColor,
-                  ),
-                ),
-                PersistentTabConfig(
-                  screen: const SearchScreen(),
-                  item: ItemConfig(
-                    icon: const Icon(Icons.search),
-                    inactiveIcon: const Icon(Icons.search_outlined),
-                    iconSize: widget.iconsize,
-                    title: "Search",
-                    activeForegroundColor: activeColor,
-                    inactiveForegroundColor: inactiveColor,
-                  ),
-                ),
-                PersistentTabConfig(
-                  screen: const CharacterScreen(),
-                  item: ItemConfig(
-                    icon: const Icon(Icons.person),
-                    inactiveIcon: const Icon(Icons.person_outline),
-                    iconSize: widget.iconsize,
-                    title: "Character",
-                    activeForegroundColor: activeColor,
-                    inactiveForegroundColor: inactiveColor,
-                  ),
-                ),
-                PersistentTabConfig(
-                  screen: const MyLibraryScreen(),
-                  item: ItemConfig(
-                    icon: const Icon(Icons.collections_bookmark),
-                    inactiveIcon:
-                        const Icon(Icons.collections_bookmark_outlined),
-                    iconSize: widget.iconsize,
-                    title: "Bookmark",
-                    activeForegroundColor: activeColor,
-                    inactiveForegroundColor: inactiveColor,
-                  ),
-                ),
-                PersistentTabConfig(
-                  screen: const SettingsScreen(),
-                  item: ItemConfig(
-                    icon: const Icon(Icons.settings),
-                    inactiveIcon: const Icon(Icons.settings_outlined),
-                    iconSize: widget.iconsize,
-                    title: "Settings",
-                    activeForegroundColor: activeColor,
-                    inactiveForegroundColor: inactiveColor,
-                  ),
-                ),
-              ],
-              navBarBuilder: (navBarConfig) => Style1BottomNavBar(
-                navBarConfig: navBarConfig,
-                navBarDecoration: NavBarDecoration(
-                  color: Theme.of(context).appBarTheme.backgroundColor ??
-                      Theme.of(context).scaffoldBackgroundColor,
-                ),
+      child: ConnectionRestoredNotification(
+        child: Scaffold(
+          body: Stack(
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: _hideNavBarNotifier,
+                builder: (context, hideNavBar, child) {
+                  return PersistentTabView(
+                    backgroundColor: Theme.of(context).colorScheme.surface,
+                    hideNavigationBar: hideNavBar,
+                    tabs: [
+                      PersistentTabConfig(
+                        screen: HomeScreen(),
+                        item: ItemConfig(
+                          icon: const Icon(Icons.home),
+                          inactiveIcon: const Icon(Icons.home_outlined),
+                          iconSize: widget.iconsize,
+                          title: "Home",
+                          activeForegroundColor: activeColor,
+                          inactiveForegroundColor: inactiveColor,
+                        ),
+                      ),
+                      PersistentTabConfig(
+                        screen: const SearchScreen(),
+                        item: ItemConfig(
+                          icon: const Icon(Icons.search),
+                          inactiveIcon: const Icon(Icons.search_outlined),
+                          iconSize: widget.iconsize,
+                          title: "Search",
+                          activeForegroundColor: activeColor,
+                          inactiveForegroundColor: inactiveColor,
+                        ),
+                      ),
+                      PersistentTabConfig(
+                        screen: const CharacterScreen(),
+                        item: ItemConfig(
+                          icon: const Icon(Icons.person),
+                          inactiveIcon: const Icon(Icons.person_outline),
+                          iconSize: widget.iconsize,
+                          title: "Character",
+                          activeForegroundColor: activeColor,
+                          inactiveForegroundColor: inactiveColor,
+                        ),
+                      ),
+                      PersistentTabConfig(
+                        screen: const MyLibraryScreen(),
+                        item: ItemConfig(
+                          icon: const Icon(Icons.collections_bookmark),
+                          inactiveIcon:
+                              const Icon(Icons.collections_bookmark_outlined),
+                          iconSize: widget.iconsize,
+                          title: "Bookmark",
+                          activeForegroundColor: activeColor,
+                          inactiveForegroundColor: inactiveColor,
+                        ),
+                      ),
+                      PersistentTabConfig(
+                        screen: const SettingsScreen(),
+                        item: ItemConfig(
+                          icon: const Icon(Icons.settings),
+                          inactiveIcon: const Icon(Icons.settings_outlined),
+                          iconSize: widget.iconsize,
+                          title: "Settings",
+                          activeForegroundColor: activeColor,
+                          inactiveForegroundColor: inactiveColor,
+                        ),
+                      ),
+                    ],
+                    navBarBuilder: (navBarConfig) => Style1BottomNavBar(
+                      navBarConfig: navBarConfig,
+                      navBarDecoration: NavBarDecoration(
+                        color: Theme.of(context).appBarTheme.backgroundColor ??
+                            Theme.of(context).scaffoldBackgroundColor,
+                      ),
+                    ),
+                  );
+                },
               ),
-            );
-          },
+              // Add debug connectivity widget in development mode
+              if (kDebugMode) const TestConnectivityWidget(),
+            ],
+          ),
         ),
       ),
     );

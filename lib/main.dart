@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'package:read_leaf/features/library/presentation/blocs/file_bloc.dart';
 import 'package:read_leaf/features/search/presentation/blocs/search_bloc.dart';
 import 'package:read_leaf/features/reader/presentation/blocs/reader_bloc.dart';
@@ -12,15 +16,13 @@ import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/features/reader/presentation/screens/pdf_viewer.dart';
 import 'package:read_leaf/features/reader/presentation/screens/epub_viewer.dart';
 import 'package:read_leaf/features/reader/presentation/screens/reader_loading_screen_route.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:read_leaf/features/library/presentation/screens/splash_screen.dart';
-import 'injection/injection.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
 import 'package:read_leaf/generated/l10n.dart';
-import 'package:flutter/foundation.dart';
-import 'package:read_leaf/widgets/offline_state_widget.dart';
+import 'package:read_leaf/widgets/connection_restored_notification.dart';
 import 'package:read_leaf/core/services/connectivity_service.dart';
+
+import 'injection/injection.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
