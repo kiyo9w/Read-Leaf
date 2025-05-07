@@ -5,6 +5,9 @@ import 'package:read_leaf/features/characters/domain/models/ai_character.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:get_it/get_it.dart';
+import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
+import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
 
 class FloatingChatWidget extends StatefulWidget {
   final AiCharacter character;
@@ -233,16 +236,32 @@ class FloatingChatWidgetState extends State<FloatingChatWidget>
   // Public method to add a user message
   void addUserMessage(String message) {
     print('Adding user message for character: ${widget.character.name}');
-    if (_chatScreenKey.currentState != null) {
-      _chatScreenKey.currentState!.loadMessages(); // Use public method
-    }
+    // Even if the chat is not visible, store the message
+    final chatService = GetIt.I<ChatService>();
+    final chatMessage = ChatMessage(
+      text: message,
+      isUser: true,
+      timestamp: DateTime.now(),
+      characterName: widget.character.name,
+      bookId: widget.bookId,
+      avatarImagePath: widget.character.avatarImagePath,
+    );
+
+    chatService.addMessage(chatMessage).then((_) {
+      // If chat is visible, reload the messages to show the new one
+      if (_chatScreenKey.currentState != null) {
+        _chatScreenKey.currentState!.loadMessages();
+      }
+    });
   }
 
   // Public method to add an AI response
   void addAiResponse(String message) {
     print('Adding AI response for character: ${widget.character.name}');
+    // No need to save the message here as GeminiService already saves it
+    // Just refresh the UI if the chat screen is visible
     if (_chatScreenKey.currentState != null) {
-      _chatScreenKey.currentState!.loadMessages(); // Use public method
+      _chatScreenKey.currentState!.loadMessages();
     }
   }
 

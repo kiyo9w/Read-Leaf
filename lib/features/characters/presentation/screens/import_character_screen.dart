@@ -214,6 +214,7 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final textColor = Theme.of(context).brightness == Brightness.dark ? Colors.white : Colors.black;
 
     if (_isLoading) {
       return Scaffold(
@@ -386,12 +387,13 @@ class _ImportCharacterScreenState extends State<ImportCharacterScreen> {
                         Text(
                           'Import',
                           style: TextStyle(
+                            color: textColor,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const Icon(Icons.check, size: 18),
+                        Icon(Icons.check, size: 18, color: textColor),
                       ],
                     ),
                   ),

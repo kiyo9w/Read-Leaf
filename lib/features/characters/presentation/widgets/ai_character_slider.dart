@@ -1120,7 +1120,6 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
   Widget _buildCharacterItem(int index) {
     final character = characters[index];
     final isSelected = index == _selectedIndex;
-    final isCustom = character.tags.contains('Custom');
     final theme = Theme.of(context);
     final isTablet = ResponsiveConstants.isTablet(context);
 
@@ -1272,33 +1271,32 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
                   ],
                 ),
               ),
-              if (isCustom)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: GestureDetector(
-                    onTap: () => _deleteCharacter(index),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade600,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: isTablet ? 18.0 : 16.0,
-                      ),
+              Positioned(
+                top: 0,
+                right: 0,
+                child: GestureDetector(
+                  onTap: () => _deleteCharacter(index),
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade600,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: isTablet ? 18.0 : 16.0,
                     ),
                   ),
                 ),
+              ),
               if (isSelected)
                 Positioned(
                   bottom: 12,
@@ -1408,16 +1406,44 @@ class _AiCharacterSliderState extends State<AiCharacterSlider>
     );
 
     if (shouldDelete == true && mounted) {
-      // Delete from service
-      await _characterService.deleteCharacter(characters[index].name);
+      // Store the character name to be deleted
+      final characterToDelete = characters[index].name;
 
-      // Update UI
-      setState(() {
-        characters.removeAt(index);
-        if (_selectedIndex >= characters.length) {
-          _selectedIndex = characters.length - 1;
+      try {
+        // Delete from service
+        await _characterService.deleteCharacter(characterToDelete);
+
+        // Instead of directly modifying the list, reload characters from service
+        // This ensures proper synchronization and avoids index confusion
+        setState(() {
+          _isLoading = true;
+        });
+
+        // Reload the character list completely from the service
+        final loadedCharacters = _characterService.getUserSelectedCharacters();
+        final selectedCharacter = _characterService.getSelectedCharacter();
+
+        setState(() {
+          characters = loadedCharacters;
+          _selectedIndex = characters
+              .indexWhere((char) => char.name == selectedCharacter?.name);
+          if (_selectedIndex == -1 && characters.isNotEmpty) {
+            _selectedIndex =
+                characters.indexWhere((char) => char.name == 'Amelia');
+            if (_selectedIndex == -1) {
+              _selectedIndex = 0;
+            }
+          }
+          _isLoading = false;
+        });
+      } catch (e) {
+        debugPrint('Error deleting character: $e');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete character: $e')),
+          );
         }
-      });
+      }
     }
   }
 

@@ -13,6 +13,7 @@ import 'package:read_leaf/core/constants/responsive_constants.dart';
 import 'package:read_leaf/features/characters/data/character_suggestion_service.dart';
 import 'package:read_leaf/features/characters/presentation/widgets/character_suggestion_chips.dart';
 import 'package:read_leaf/features/characters/data/category_constants.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class CreateCharacterScreen extends StatefulWidget {
   const CreateCharacterScreen({super.key});
@@ -284,7 +285,9 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
           _stepTitles[_currentStep],
           style: theme.textTheme.headlineSmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: theme.primaryColor,
+            color: theme.brightness == Brightness.dark
+                ? Colors.white
+                : Colors.black,
           ),
         ),
         const SizedBox(height: 4),
@@ -450,7 +453,9 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
             'Character Traits',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: theme.primaryColor,
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.black,
             ),
           ),
           const SizedBox(height: 16),
@@ -550,7 +555,9 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
             'Voice Style',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: theme.primaryColor,
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.black,
               fontSize: isTablet ? 20 : 18,
             ),
           ),
@@ -567,7 +574,9 @@ class _CreateCharacterScreenState extends State<CreateCharacterScreen> {
             'Publishing Options',
             style: theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.bold,
-              color: theme.primaryColor,
+              color: theme.brightness == Brightness.dark
+                  ? Colors.white
+                  : Colors.black,
               fontSize: isTablet ? 20 : 18,
             ),
           ),
@@ -906,11 +915,16 @@ ${_nameController.text}'s Response:""";
               child: Row(
                 children: [
                   Icon(Icons.arrow_back,
-                      color: theme.primaryColor, size: isTablet ? 24 : 20),
+                      color: theme.brightness == Brightness.dark
+                          ? Colors.white
+                          : Colors.black,
+                      size: isTablet ? 24 : 20),
                   SizedBox(width: isTablet ? 12 : 8),
                   Text('Back',
                       style: TextStyle(
-                          color: theme.primaryColor,
+                          color: theme.brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.black,
                           fontSize: isTablet ? 18 : 16,
                           fontWeight: FontWeight.w500)),
                 ],
@@ -934,13 +948,17 @@ ${_nameController.text}'s Response:""";
               children: [
                 Text(_currentStep < 2 ? 'Next' : 'Create',
                     style: TextStyle(
-                        color: theme.colorScheme.onPrimary,
+                        color: theme.brightness == Brightness.dark
+                            ? Colors.white
+                            : Colors.black,
                         fontSize: isTablet ? 18 : 16,
                         fontWeight: FontWeight.bold)),
                 SizedBox(width: isTablet ? 12 : 8),
                 Icon(_currentStep < 2 ? Icons.arrow_forward : Icons.check,
                     size: isTablet ? 24 : 20,
-                    color: theme.colorScheme.onPrimary),
+                    color: theme.brightness == Brightness.dark
+                        ? Colors.white
+                        : Colors.black),
               ],
             ),
           ),
