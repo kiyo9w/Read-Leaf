@@ -188,6 +188,55 @@ class PublicCharacterRepository {
     }
   }
 
+  // Get most liked public characters
+  Future<List<PublicCharacter>> getMostLikedPublicCharacters({
+    int limit = 10,
+  }) async {
+    try {
+      _log.info('Getting most liked public characters');
+
+      final response = await _supabase
+          .from('characters')
+          .select('*')
+          .eq('is_public', true)
+          .order('like_count', ascending: false)
+          .limit(limit);
+
+      final userId = _supabase.auth.currentUser?.id;
+
+      // Separately check which characters are liked by the current user if logged in
+      List<String> likedCharacterIds = [];
+      if (userId != null) {
+        try {
+          final likes = await _supabase
+              .from('character_likes')
+              .select('character_id')
+              .eq('user_id', userId);
+
+          likedCharacterIds = (likes as List)
+              .map((like) => like['character_id'] as String)
+              .toList();
+        } catch (e) {
+          _log.warning('Error fetching likes: $e');
+        }
+      }
+
+      return (response as List).map((json) {
+        // Check if the character is liked by the current user
+        final isLiked =
+            userId != null && likedCharacterIds.contains(json['id']);
+
+        // Add isLiked field to the JSON
+        json['is_liked'] = isLiked;
+
+        return _convertToPublicCharacter(json);
+      }).toList();
+    } catch (e, stack) {
+      _log.severe('Error getting most liked public characters', e, stack);
+      return [];
+    }
+  }
+
   // Get public characters created by the current user
   Future<List<PublicCharacter>> getUserPublicCharacters() async {
     try {

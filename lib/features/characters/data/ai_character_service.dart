@@ -4,6 +4,7 @@ import 'package:read_leaf/features/settings/data/sync/sync_manager.dart';
 import 'package:read_leaf/features/characters/data/character_template_service.dart';
 import 'package:read_leaf/features/characters/data/default_character_loader.dart';
 import 'package:read_leaf/features/characters/data/public_character_repository.dart';
+import 'package:read_leaf/features/characters/data/category_constants.dart';
 import 'package:logging/logging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -19,6 +20,8 @@ class AiCharacterService {
   final Map<String, Map<String, dynamic>> _characterPreferences = {};
   List<AiCharacter> _characters = [];
   List<AiCharacter> _publicCharacters = [];
+  // Set to track characters removed from the slider
+  final Set<String> _removedFromSlider = {};
 
   // Stream controller for character updates
   final _characterUpdateController = StreamController<void>.broadcast();
@@ -114,6 +117,9 @@ class AiCharacterService {
         _characterPreferences[character.name]!['last_used'] =
             now.toIso8601String();
       }
+
+      // Remove from the list of characters removed from slider
+      _removedFromSlider.remove(character.name);
 
       // Save to local storage
       await _saveAllPreferences();
@@ -216,11 +222,18 @@ class AiCharacterService {
 
   Future<List<AiCharacter>> getCharactersByCategory(String category) async {
     if (category == 'All') {
-      return _characters;
+      return _characters.where((c) => !c.tags.contains('Default')).toList();
+    }
+
+    if (category == CharacterCategories.defaultCategory) {
+      return _characters.where((c) => c.tags.contains('Default')).toList();
     }
 
     if (category == 'Custom') {
-      return _characters.where((c) => c.tags.contains('Custom')).toList();
+      return _characters
+          .where(
+              (c) => c.tags.contains('Custom') && !c.tags.contains('Default'))
+          .toList();
     }
 
     try {
@@ -242,10 +255,11 @@ class AiCharacterService {
         return character;
       }).toList();
 
-      // Add any local characters with matching tags
+      // Add any local characters with matching tags, excluding defaults
       final localCategoryCharacters = _characters
           .where((c) =>
               c.tags.contains(category) &&
+              !c.tags.contains('Default') &&
               !categoryCharacters.any((pc) => pc.name == c.name))
           .toList();
 
@@ -253,7 +267,38 @@ class AiCharacterService {
     } catch (e, stack) {
       _log.severe('Error getting characters by category', e, stack);
       // Fall back to local filtering
-      return _characters.where((c) => c.tags.contains(category)).toList();
+      return _characters
+          .where(
+              (c) => c.tags.contains(category) && !c.tags.contains('Default'))
+          .toList();
+    }
+  }
+
+  // Get most liked characters
+  Future<List<AiCharacter>> getMostLikedCharacters({int limit = 5}) async {
+    try {
+      _log.info('Getting most liked characters');
+
+      // Get characters from the public repository by likes
+      final publicCharacters =
+          await _publicCharacterRepository.getMostLikedPublicCharacters(
+        limit: limit,
+      );
+
+      // Convert to AiCharacter objects and add Community tag
+      return publicCharacters.map((pc) {
+        final character = pc.toAiCharacter();
+        if (!character.tags.contains('Community')) {
+          return character.copyWith(
+            tags: [...character.tags, 'Community'],
+          );
+        }
+        return character;
+      }).toList();
+    } catch (e, stack) {
+      _log.severe('Error getting most liked characters', e, stack);
+      // Fall back to local characters if the API call fails
+      return _characters.take(limit).toList();
     }
   }
 
@@ -299,13 +344,21 @@ class AiCharacterService {
 
       final result = [...recentCharacters, ...unusedCharacters];
 
+      // Filter out characters that have been removed from the slider
+      final filteredResult =
+          result.where((c) => !_removedFromSlider.contains(c.name)).toList();
+
       _log.info(
-          'Returning ${result.length} user-selected characters (${recentCharacters.length} recently used)');
-      return result;
+          'Returning ${filteredResult.length} user-selected characters (${recentCharacters.length} recently used)');
+      return filteredResult;
     } catch (e) {
       _log.warning('Error getting user-selected characters: $e');
-      // Return non-community characters as fallback
-      return _characters.where((c) => !c.tags.contains('Community')).toList();
+      // Return non-community characters as fallback (filtered for removed characters)
+      return _characters
+          .where((c) =>
+              !c.tags.contains('Community') &&
+              !_removedFromSlider.contains(c.name))
+          .toList();
     }
   }
 
@@ -444,12 +497,9 @@ class AiCharacterService {
 
   Future<void> deleteCharacter(String name) async {
     try {
-      // Try to delete from server if authenticated
-      if (_syncManager.isAuthenticated) {
-        await _templateService.deleteTemplate(name);
-      }
+      _log.info('Removing character from slider: $name');
 
-      // If deleted character was selected, switch to default
+      // If removed character was selected, switch to default
       if (_selectedCharacter?.name == name) {
         final defaultCharacters =
             await DefaultCharacterLoader.loadDefaultCharacters();
@@ -457,21 +507,22 @@ class AiCharacterService {
           (c) => c.name == 'Amelia',
           orElse: () => defaultCharacters[0],
         );
+        // Notify character update subscribers about the selection change
+        _characterUpdateController.add(null);
       }
 
-      // Remove from local list
-      _characters = _characters.where((c) => c.name != name).toList();
-
-      // Remove from preferences
+      // Remove from preferences but keep in _characters list
+      // This allows the user to re-add it later from the character screen
       _characterPreferences.remove(name);
+
+      // Add to the set of characters removed from slider
+      _removedFromSlider.add(name);
+
       await _saveAllPreferences();
 
-      // Notify listeners of the update
-      _characterUpdateController.add(null);
-
-      _log.info('Deleted character: $name');
+      _log.info('Removed character from slider: $name');
     } catch (e, stack) {
-      _log.severe('Error deleting character', e, stack);
+      _log.severe('Error removing character from slider', e, stack);
       rethrow;
     }
   }
@@ -539,6 +590,13 @@ class AiCharacterService {
         });
       }
 
+      // Load removed from slider list
+      final removedList = prefs.getStringList('removed_from_slider');
+      if (removedList != null) {
+        _removedFromSlider.clear();
+        _removedFromSlider.addAll(removedList);
+      }
+
       // Try to load selected character from preferences
       final selectedCharName = prefs.getString('selected_character');
       if (selectedCharName != null && _characters.isNotEmpty) {
@@ -585,6 +643,10 @@ class AiCharacterService {
       if (_selectedCharacter != null) {
         await prefs.setString('selected_character', _selectedCharacter!.name);
       }
+
+      // Save removed characters set
+      await prefs.setStringList(
+          'removed_from_slider', _removedFromSlider.toList());
     } catch (e) {
       _log.warning('Failed to save preferences: $e');
     }
@@ -636,6 +698,9 @@ class AiCharacterService {
         ..._characters.where((c) => c.name != updatedCharacter.name),
       ];
 
+      // Remove from the "removed from slider" set if it was there
+      _removedFromSlider.remove(updatedCharacter.name);
+
       // Increment the download count on the server
       if (_syncManager.isAuthenticated) {
         try {
@@ -680,5 +745,38 @@ ROLEPLAY RULES:
 
   void dispose() {
     _characterUpdateController.close();
+  }
+
+  Future<void> addCharacterToSlider(AiCharacter character) async {
+    try {
+      _log.info('Re-adding character to slider: ${character.name}');
+
+      // Remove from the set of characters removed from slider
+      _removedFromSlider.remove(character.name);
+
+      // Make sure it's in preferences
+      final now = DateTime.now();
+      if (!_characterPreferences.containsKey(character.name)) {
+        _characterPreferences[character.name] = {
+          'last_used': now.toIso8601String(),
+          'custom_settings': {},
+        };
+      } else {
+        // Update last used time
+        _characterPreferences[character.name]!['last_used'] =
+            now.toIso8601String();
+      }
+
+      // Save preferences
+      await _saveAllPreferences();
+
+      // Notify listeners of the update
+      _characterUpdateController.add(null);
+
+      _log.info('Character added back to slider: ${character.name}');
+    } catch (e, stack) {
+      _log.severe('Error adding character to slider', e, stack);
+      rethrow;
+    }
   }
 }

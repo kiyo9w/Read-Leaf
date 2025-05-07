@@ -73,6 +73,12 @@ class AiCharacter {
   @JsonKey(name: 'updated_at')
   final DateTime updatedAt;
   final AiGenerationParams generationParams;
+  @JsonKey(name: 'like_count', defaultValue: 0)
+  final int likeCount;
+  @JsonKey(name: 'download_count', defaultValue: 0)
+  final int downloadCount;
+  @JsonKey(name: 'is_liked', defaultValue: false)
+  final bool isLiked;
 
   const AiCharacter({
     required this.name,
@@ -89,11 +95,22 @@ class AiCharacter {
     required this.createdAt,
     required this.updatedAt,
     this.generationParams = const AiGenerationParams(),
+    this.likeCount = 0,
+    this.downloadCount = 0,
+    this.isLiked = false,
   });
 
   // Factory constructor to create an AiCharacter from JSON
-  factory AiCharacter.fromJson(Map<String, dynamic> json) =>
-      _$AiCharacterFromJson(json);
+  factory AiCharacter.fromJson(Map<String, dynamic> json) {
+    // Handle null values for like_count and download_count
+    final Map<String, dynamic> sanitizedJson = Map<String, dynamic>.from(json);
+
+    sanitizedJson['like_count'] = json['like_count'] ?? 0;
+    sanitizedJson['download_count'] = json['download_count'] ?? 0;
+    sanitizedJson['is_liked'] = json['is_liked'] ?? false;
+
+    return _$AiCharacterFromJson(sanitizedJson);
+  }
 
   // Convert an AiCharacter instance to JSON
   Map<String, dynamic> toJson() => _$AiCharacterToJson(this);
@@ -114,6 +131,9 @@ class AiCharacter {
     DateTime? createdAt,
     DateTime? updatedAt,
     AiGenerationParams? generationParams,
+    int? likeCount,
+    int? downloadCount,
+    bool? isLiked,
   }) {
     return AiCharacter(
       name: name ?? this.name,
@@ -130,6 +150,9 @@ class AiCharacter {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       generationParams: generationParams ?? this.generationParams,
+      likeCount: likeCount ?? this.likeCount,
+      downloadCount: downloadCount ?? this.downloadCount,
+      isLiked: isLiked ?? this.isLiked,
     );
   }
 
@@ -203,13 +226,14 @@ SCENARIO:
 $scenario
 
 ROLEPLAY RULES:
-- Chat exclusively as $name
-- Keep responses personal and in-character
-- Use subtle physical cues to hint at mental state
-- Include internal thoughts in asterisks *like this*
-- Keep responses concise (2-3 sentences)
-- Stay in character at all times
-- Express emotions and reactions naturally
-- Use your character's unique way of speaking''';
+- Chat exclusively as $name while focusing on discussing books with the user
+- Keep responses brief (2-3 sentences) and directly address user questions
+- Prioritize discussing book content over character exposition
+- Include only minimal character traits that don't distract from book discussion
+- Express your thoughts about the book in-character but concisely
+- Use very brief physical cues if needed *like this*
+- Always respond to the user's questions about the book first
+- Avoid long explanations about your character background
+- Help users understand the book they're reading''';
   }
 }

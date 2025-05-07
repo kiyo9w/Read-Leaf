@@ -62,8 +62,17 @@ class PublicCharacter {
   });
 
   // Factory constructor to create a PublicCharacter from JSON
-  factory PublicCharacter.fromJson(Map<String, dynamic> json) =>
-      _$PublicCharacterFromJson(json);
+  factory PublicCharacter.fromJson(Map<String, dynamic> json) {
+    // Handle null values for like_count and download_count
+    final Map<String, dynamic> sanitizedJson = Map<String, dynamic>.from(json);
+
+    // Ensure like_count and download_count are integers, not null
+    sanitizedJson['like_count'] = json['like_count'] ?? 0;
+    sanitizedJson['download_count'] = json['download_count'] ?? 0;
+    sanitizedJson['is_liked'] = json['is_liked'] ?? false;
+
+    return _$PublicCharacterFromJson(sanitizedJson);
+  }
 
   // Convert a PublicCharacter instance to JSON
   Map<String, dynamic> toJson() => _$PublicCharacterToJson(this);
@@ -84,6 +93,9 @@ class PublicCharacter {
       creator: creator,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      likeCount: likeCount,
+      downloadCount: downloadCount,
+      isLiked: isLiked,
     );
   }
 

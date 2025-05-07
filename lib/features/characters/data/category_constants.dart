@@ -7,6 +7,7 @@ class CharacterCategories {
   static const String fiction = 'Fiction';
   static const String nonFiction = 'Non-Fiction';
   static const String custom = 'Custom';
+  static const String defaultCategory = 'Default';
 
   // Fiction subcategories
   static const String fantasy = 'Fantasy';
@@ -51,6 +52,7 @@ class CharacterCategories {
       history,
       science,
       custom,
+      defaultCategory,
     ];
   }
 
@@ -137,6 +139,8 @@ class CharacterCategories {
         return Icons.biotech;
       case custom:
         return Icons.edit;
+      case defaultCategory:
+        return Icons.smart_toy;
       default:
         return Icons.book;
     }
@@ -183,6 +187,8 @@ class CharacterCategories {
         return Colors.blueGrey;
       case custom:
         return theme.primaryColor;
+      case defaultCategory:
+        return Colors.grey;
       default:
         return theme.colorScheme.primary;
     }

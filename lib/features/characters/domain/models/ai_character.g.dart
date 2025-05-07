@@ -29,6 +29,9 @@ AiCharacter _$AiCharacterFromJson(Map<String, dynamic> json) => AiCharacter(
           ? const AiGenerationParams()
           : AiGenerationParams.fromJson(
               json['generationParams'] as Map<String, dynamic>),
+      likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+      downloadCount: (json['download_count'] as num?)?.toInt() ?? 0,
+      isLiked: json['is_liked'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$AiCharacterToJson(AiCharacter instance) =>
@@ -47,4 +50,7 @@ Map<String, dynamic> _$AiCharacterToJson(AiCharacter instance) =>
       'created_at': instance.createdAt.toIso8601String(),
       'updated_at': instance.updatedAt.toIso8601String(),
       'generationParams': instance.generationParams.toJson(),
+      'like_count': instance.likeCount,
+      'download_count': instance.downloadCount,
+      'is_liked': instance.isLiked,
     };
