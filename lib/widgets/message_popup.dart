@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
-Future<void> messagePopup(BuildContext context, String title, String message) { 
+Future<void> messagePopup(BuildContext context, String title, String message) {
   Widget okButton = TextButton(
-    child: const Text("OK"),
+    child: Text(S.of(context).ok),
     onPressed: () {
       Navigator.pop(context);
     },

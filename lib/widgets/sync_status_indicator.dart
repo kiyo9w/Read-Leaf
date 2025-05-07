@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../features/settings/presentation/blocs/sync_bloc.dart';
+import '../generated/l10n.dart';
 
 class SyncStatusIndicator extends StatelessWidget {
   const SyncStatusIndicator({super.key});
@@ -43,7 +44,7 @@ class SyncStatusIndicator extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            'Syncing ${state.pendingTasks} items...',
+            S.of(context).syncingItemsCount(state.pendingTasks),
             style: TextStyle(
               color: Theme.of(context).colorScheme.onPrimaryContainer,
               fontSize: 14,
@@ -88,7 +89,7 @@ class SyncStatusIndicator extends StatelessWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
-              'Retry',
+              S.of(context).retry,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onErrorContainer,
                 fontSize: 14,
@@ -118,7 +119,7 @@ class SyncStatusIndicator extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            'Offline',
+            S.of(context).offline,
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 14,

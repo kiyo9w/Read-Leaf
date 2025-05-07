@@ -10,6 +10,7 @@ import 'package:read_leaf/widgets/page_title_widget.dart';
 import 'package:read_leaf/nav_screen.dart';
 import 'package:read_leaf/core/utils/file_utils.dart';
 import 'package:read_leaf/core/utils/utils.dart';
+import 'package:read_leaf/generated/l10n.dart';
 
 class ResultPage extends StatefulWidget {
   final String searchQuery;
@@ -70,9 +71,9 @@ class _ResultPageState extends State<ResultPage> {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => Navigator.pop(context),
               ),
-              title: const Text(
-                'Result',
-                style: TextStyle(
+              title: Text(
+                S.of(context).result,
+                style: const TextStyle(
                   fontSize: 42.0,
                 ),
               ),
@@ -91,7 +92,7 @@ class _ResultPageState extends State<ResultPage> {
         children: [
           Padding(
             padding: const EdgeInsets.only(left: 5, right: 5, top: 10),
-            child: TitleText("Results for \"${widget.searchQuery}\""),
+            child: TitleText(S.of(context).resultsFor(widget.searchQuery)),
           ),
           const Expanded(
             child: Center(
@@ -114,7 +115,7 @@ class _ResultPageState extends State<ResultPage> {
           child: CustomScrollView(
             slivers: <Widget>[
               SliverToBoxAdapter(
-                child: TitleText("Results for \"${widget.searchQuery}\""),
+                child: TitleText(S.of(context).resultsFor(widget.searchQuery)),
               ),
               SliverList(
                 delegate: SliverChildListDelegate(
@@ -144,7 +145,7 @@ class _ResultPageState extends State<ResultPage> {
                           ));
                         } else {
                           Utils.showErrorSnackBar(
-                              context, 'Failed to get download link');
+                              context, S.of(context).failedToGetDownloadLink);
                         }
                       },
                       onStar: () {},
@@ -162,7 +163,7 @@ class _ResultPageState extends State<ResultPage> {
       }
       return Center(
         child: Text(
-          "No Results Found!",
+          S.of(context).noResultsFound,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -178,7 +179,7 @@ class _ResultPageState extends State<ResultPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Error: ${state.message}',
+              '${S.of(context).error}: ${state.message}',
               style: const TextStyle(
                 fontSize: 16,
                 color: Colors.red,
@@ -191,14 +192,14 @@ class _ResultPageState extends State<ResultPage> {
               onPressed: () {
                 _searchBloc.add(SearchBooks(query: widget.searchQuery));
               },
-              child: const Text('Retry'),
+              child: Text(S.of(context).retry),
             ),
           ],
         ),
       );
     }
 
-    return const Center(child: Text('No content'));
+    return Center(child: Text(S.of(context).noContent));
   }
 
   Future<void> _handleBookClick(String url) async {
@@ -220,13 +221,14 @@ class DownloadProgressDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final percentage = (progress * 100).toStringAsFixed(0);
     return AlertDialog(
-      title: Text('Downloading...'),
+      title: Text(S.of(context).downloading),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           LinearProgressIndicator(
             value: progress,
-            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+            backgroundColor:
+                Theme.of(context).colorScheme.surfaceContainerHighest,
             valueColor: AlwaysStoppedAnimation<Color>(
                 Theme.of(context).colorScheme.primary),
           ),

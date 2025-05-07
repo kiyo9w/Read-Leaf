@@ -1,6 +1,9 @@
 // Flutter imports:
 import 'package:flutter/material.dart';
 
+/// A widget for displaying a title text with consistent styling.
+/// The text to display should be passed as a parameter and should be
+/// already localized using S.of(context) before passing it to this widget.
 class TitleText extends StatelessWidget {
   const TitleText(this.text, {super.key});
 
@@ -14,7 +17,7 @@ class TitleText extends StatelessWidget {
         style: TextStyle(
           fontSize: 19,
           fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.secondary,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
       ),
     );
