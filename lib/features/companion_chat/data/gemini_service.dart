@@ -1,5 +1,6 @@
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:read_leaf/features/companion_chat/data/ai_service.dart';
 import 'package:read_leaf/features/characters/data/ai_character_service.dart';
 import 'package:read_leaf/features/companion_chat/data/chat_service.dart';
 import 'package:read_leaf/features/companion_chat/domain/models/chat_message.dart';
@@ -44,14 +45,14 @@ class AiGenerationConfig {
   }
 }
 
-class GeminiService {
+class GeminiService extends AiService {
   late final GenerativeModel _model;
   final AiCharacterService _characterService;
   final ChatService _chatService;
   final _log = Logger('GeminiService');
-  bool _isInitialized = false;
   static const int maxConversations = 5;
   late final BookMetadataRepository _bookMetadataRepository;
+  final String? _apiKey;
 
   // Cache for conversation contexts to reduce database reads
   final Map<String, _CachedContext> _contextCache = {};
@@ -83,17 +84,18 @@ ROLEPLAY RULES:
 
 {CHARACTER_NAME}'s Response:""";
 
-  GeminiService(this._characterService, this._chatService) {
+  GeminiService(this._apiKey, this._characterService, this._chatService) {
     _bookMetadataRepository = getIt<BookMetadataRepository>();
   }
 
+  @override
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    if (isInitialized) return;
 
     try {
-      final apiKey = dotenv.env['GEMINI_API_KEY'];
+      final apiKey = _apiKey ?? dotenv.env['GEMINI_API_KEY'];
       if (apiKey == null || apiKey.isEmpty) {
-        throw Exception('GEMINI_API_KEY not set in .env file');
+        throw Exception('GEMINI_API_KEY not set');
       }
 
       // Load saved custom encouragement prompt if any
@@ -106,7 +108,7 @@ ROLEPLAY RULES:
         apiKey: apiKey,
         generationConfig: config.toGeminiConfig(),
       );
-      _isInitialized = true;
+      isInitialized = true;
       _log.info('GeminiService initialized successfully');
     } catch (e, stackTrace) {
       _log.severe('Error initializing Gemini service', e, stackTrace);
@@ -332,7 +334,7 @@ ROLEPLAY RULES:
     String task = 'analyze_text',
   }) async {
     try {
-      if (!_isInitialized) {
+      if (!isInitialized) {
         throw Exception('Gemini service is not initialized');
       }
 
@@ -355,7 +357,8 @@ ROLEPLAY RULES:
               currentPage != validatedMetadata.currentPage ||
               totalPages != validatedMetadata.totalPages)) {
         _log.info(
-            'Using validated metadata instead: title="${validatedMetadata.title}", ' 'currentPage=${validatedMetadata.currentPage}, totalPages=${validatedMetadata.totalPages}');
+            'Using validated metadata instead: title="${validatedMetadata.title}", '
+            'currentPage=${validatedMetadata.currentPage}, totalPages=${validatedMetadata.totalPages}');
 
         // If the title changed, we're using an alternative book
         isAlternativeBook = bookTitle != validatedMetadata.title;
@@ -552,7 +555,7 @@ ROLEPLAY RULES:
   }) {
     // Base system prompt for roleplay
     const baseSystemPrompt =
-        """Write the next reply in a fictional roleplay chat between {CHARACTER_NAME} and {USER}. Write 1 reply only in a natural, conversational style. Use markdown and avoid repetition. Write at least 1 paragraph, up to 4. Italicize actions and internal thoughts using asterisks *like this*. Be proactive, creative, and drive the conversation forward.
+        """Write the next reply in a fictional roleplay chat between {CHARACTER_NAME} and {USER} about the book they're reading. Write 1 reply only in a natural, conversational style. Keep responses brief and focused on the book content (1-3 paragraphs). Use markdown for formatting. Italicize actions and internal thoughts using asterisks *like this*.
 
 CHARACTER CONTEXT:
 Name: {CHARACTER_NAME}
@@ -560,14 +563,15 @@ Personality: {PERSONALITY}
 Scenario: {SCENARIO}
 
 ROLEPLAY RULES:
-- Stay in character at all times
-- Use character's unique speech patterns and mannerisms
-- React naturally to the context and user's words
-- Include subtle body language and emotional cues
-- Keep responses focused and relevant
-- Never write actions or responses for the user
-- Maintain consistent personality traits
-- Express emotions through actions and tone
+- Stay in character but prioritize discussing the book content
+- Keep responses concise and to the point (50-100 words is ideal)
+- Focus primarily on responding to the user's questions about the book
+- When the user asks about the book, directly answer their question first
+- Include only subtle character mannerisms that don't distract from the book discussion
+- Express thoughts about the book in a way that's consistent with your character
+- Never write long monologues about yourself - stay focused on the book
+- If the user asks about a specific passage, prioritize analyzing that text
+- Help the user understand difficult concepts in the book when needed
 
 BOOK CONTEXT:
 Title: {BOOK_TITLE}
@@ -672,6 +676,12 @@ USER INPUT:
 
   String _getDefaultMessage() {
     return "I apologize, but I couldn't analyze the text. Please try selecting a different portion of text or try again.";
+  }
+
+  @override
+  Future<void> dispose() async {
+    _contextCache.clear();
+    isInitialized = false;
   }
 }
 
