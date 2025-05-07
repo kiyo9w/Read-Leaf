@@ -19,6 +19,9 @@ import 'dart:io';
 import 'package:flutter/rendering.dart';
 import 'package:read_leaf/features/characters/data/public_character_repository.dart';
 import 'package:read_leaf/generated/l10n.dart';
+import 'package:read_leaf/features/characters/presentation/widgets/character_skeleton.dart';
+import 'package:read_leaf/core/services/connectivity_service.dart';
+import 'package:read_leaf/widgets/offline_content_placeholder.dart';
 
 /// Controller class to manage character screen state
 class CharacterScreenController {
@@ -137,6 +140,7 @@ class _CharacterScreenState extends State<CharacterScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late CharacterScreenController _controller;
+  late ConnectivityService _connectivityService;
   bool _showVoices = false;
   final ScrollController _mainScrollController = ScrollController();
   final Map<String, ScrollController> _tabScrollControllers = {};
@@ -213,11 +217,24 @@ class _CharacterScreenState extends State<CharacterScreen>
   void initState() {
     super.initState();
     _controller = CharacterScreenController();
+    _connectivityService = getIt<ConnectivityService>();
     _tabController = TabController(length: _categories.length, vsync: this);
     for (var category in _categories) {
       _tabScrollControllers[category] = ScrollController()
         ..addListener(() => _scrollListener(_tabScrollControllers[category]!));
     }
+
+    // Print connectivity status for debugging
+    print(
+        'ConnectivityService initial status: ${_connectivityService.status.value}');
+    _connectivityService.status.addListener(() {
+      print(
+          'ConnectivityService status changed: ${_connectivityService.status.value}');
+      if (mounted) {
+        // Force rebuild of UI
+        setState(() {});
+      }
+    });
   }
 
   @override
@@ -336,24 +353,47 @@ class _CharacterScreenState extends State<CharacterScreen>
                       valueListenable: _controller.isLoading,
                       builder: (context, isLoading, child) {
                         if (isLoading) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
+                          // Replace loading indicator with shimmer skeleton
+                          return const CharacterScreenSkeleton();
                         }
 
-                        return TabBarView(
-                          controller: _tabController,
-                          children: _categories.map((category) {
-                            return PullToRefreshAnimation(
-                              onRefresh: () async {
-                                await _controller.loadCharacters();
-                              },
-                              child: SingleChildScrollView(
-                                controller: _tabScrollControllers[category],
-                                child: _buildCategoryContent(category, theme),
-                              ),
+                        return ValueListenableBuilder<NetworkStatus>(
+                          valueListenable: _connectivityService.status,
+                          builder: (context, networkStatus, _) {
+                            if (networkStatus == NetworkStatus.offline) {
+                              return OfflineContentPlaceholder(
+                                onRetry: () async {
+                                  // Show loading state
+                                  _controller.isLoading.value = true;
+
+                                  // Simulate checking connection
+                                  await Future.delayed(
+                                      const Duration(seconds: 1));
+
+                                  // Reset loading state
+                                  if (mounted) {
+                                    _controller.isLoading.value = false;
+                                  }
+                                },
+                              );
+                            }
+
+                            return TabBarView(
+                              controller: _tabController,
+                              children: _categories.map((category) {
+                                return PullToRefreshAnimation(
+                                  onRefresh: () async {
+                                    await _controller.loadCharacters();
+                                  },
+                                  child: SingleChildScrollView(
+                                    controller: _tabScrollControllers[category],
+                                    child:
+                                        _buildCategoryContent(category, theme),
+                                  ),
+                                );
+                              }).toList(),
                             );
-                          }).toList(),
+                          },
                         );
                       },
                     ),
@@ -617,7 +657,18 @@ class _CharacterScreenState extends State<CharacterScreen>
 
   Widget _buildHeader(ThemeData theme) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      decoration: BoxDecoration(
+        color: theme.scaffoldBackgroundColor,
+        boxShadow: [
+          if (theme.brightness != Brightness.dark)
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -631,6 +682,7 @@ class _CharacterScreenState extends State<CharacterScreen>
                     : S.of(context).chooseCharacter,
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onBackground,
                 ),
               ),
               Row(
@@ -638,11 +690,27 @@ class _CharacterScreenState extends State<CharacterScreen>
                 children: [
                   _buildToggleButton(theme),
                   const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () {
-                      // TODO: Implement search
-                    },
+                  Material(
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        // TODO: Implement search
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.search,
+                          color:
+                              theme.colorScheme.onBackground.withOpacity(0.7),
+                          size: 22,
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -650,7 +718,7 @@ class _CharacterScreenState extends State<CharacterScreen>
           ),
           if (_showVoices)
             Padding(
-              padding: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.only(top: 12),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -672,21 +740,28 @@ class _CharacterScreenState extends State<CharacterScreen>
   Widget _buildToggleButton(ThemeData theme) {
     return Material(
       color: Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: _toggleView,
+        splashColor: theme.primaryColor.withOpacity(0.1),
+        highlightColor: theme.primaryColor.withOpacity(0.05),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: theme.primaryColor.withOpacity(0.1),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.primaryColor.withOpacity(0.2),
+              width: 1,
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 _showVoices ? Icons.person : Icons.record_voice_over,
-                size: 20,
+                size: 18,
                 color: theme.primaryColor,
               ),
               const SizedBox(width: 8),
@@ -694,6 +769,8 @@ class _CharacterScreenState extends State<CharacterScreen>
                 _showVoices ? S.of(context).characters : S.of(context).voice,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  color: theme.primaryColor,
                 ),
               ),
             ],
@@ -722,34 +799,51 @@ class _CharacterScreenState extends State<CharacterScreen>
 
   Widget _buildTabBar(ThemeData theme) {
     return Container(
-      height: 44,
-      margin: const EdgeInsets.symmetric(vertical: 8),
+      height: 48,
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
       child: TabBar(
         controller: _tabController,
         isScrollable: true,
         labelColor: theme.colorScheme.onSurface,
         unselectedLabelColor:
             theme.textTheme.bodyLarge?.color?.withOpacity(0.7),
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontWeight: FontWeight.normal,
+          fontSize: 14,
+        ),
         indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: theme.primaryColor.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+          color: theme.primaryColor.withOpacity(0.15),
+          border: Border.all(
+            color: theme.primaryColor.withOpacity(0.2),
+            width: 1,
+          ),
         ),
         indicatorSize: TabBarIndicatorSize.label,
-        labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+        labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+        dividerColor: Colors.transparent,
         tabs: _categories
             .map((category) => Tab(
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(CharacterCategories.getCategoryIcon(category),
-                            size: 18),
-                        const SizedBox(width: 8),
+                        Icon(
+                          CharacterCategories.getCategoryIcon(category),
+                          size: 16,
+                        ),
+                        const SizedBox(width: 6),
                         Text(category),
                       ],
                     ),
@@ -780,29 +874,75 @@ class _CharacterScreenState extends State<CharacterScreen>
         final characters = snapshot.data ?? [];
 
         if (characters.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.sentiment_dissatisfied,
-                    size: 64,
-                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    S.of(context).noCharactersInCategory,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color:
-                          theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
+          return ValueListenableBuilder(
+            valueListenable: _connectivityService.status,
+            builder: (context, NetworkStatus networkStatus, child) {
+              // Show different message when offline
+              if (networkStatus == NetworkStatus.offline) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          size: 64,
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          S.of(context).noInternetConnection,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withOpacity(0.7),
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          S.of(context).checkYourConnection,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant
+                                .withOpacity(0.7),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
                   ),
-                ],
-              ),
-            ),
+                );
+              }
+
+              // Original "no characters" message when online
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.sentiment_dissatisfied,
+                        size: 64,
+                        color:
+                            theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        S.of(context).noCharactersInCategory,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant
+                              .withOpacity(0.7),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         }
 
@@ -970,27 +1110,32 @@ class _CharacterScreenState extends State<CharacterScreen>
         height: 180,
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceVariant.withOpacity(0.5),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _buildAvatarImage(
-                imageUrl,
-                width: double.infinity,
-                height: double.infinity,
-                fit: BoxFit.cover,
+              // Character Image with shimmer placeholder
+              Hero(
+                tag: 'featured-${character.name}',
+                child: _buildAvatarImage(
+                  imageUrl,
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.cover,
+                ),
               ),
-              // Gradient overlay
+
+              // Enhanced gradient overlay with more depth
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -999,24 +1144,26 @@ class _CharacterScreenState extends State<CharacterScreen>
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withOpacity(0.1),
-                        Colors.black.withOpacity(0.7),
+                        Colors.black.withOpacity(0.2),
+                        Colors.black.withOpacity(0.8),
                       ],
-                      stops: const [0.6, 0.8, 1.0],
+                      stops: const [0.6, 0.75, 1.0],
                     ),
                   ),
                 ),
               ),
+
+              // Content overlay with improved layout
               Positioned(
                 bottom: 0,
                 left: 0,
                 right: 0,
                 child: Padding(
-                  padding: const EdgeInsets.all(12.0),
+                  padding: const EdgeInsets.all(14.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Character name
+                      // Character name with better typography
                       Text(
                         character.name ?? S.of(context).unnamedCharacter,
                         style: theme.textTheme.titleMedium?.copyWith(
@@ -1033,8 +1180,9 @@ class _CharacterScreenState extends State<CharacterScreen>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      // Character description (truncated)
+                      const SizedBox(height: 6),
+
+                      // Character description with improved readability
                       if (formattedDescription.isNotEmpty)
                         Text(
                           formattedDescription,
@@ -1053,27 +1201,44 @@ class _CharacterScreenState extends State<CharacterScreen>
                           overflow: TextOverflow.ellipsis,
                         ),
                       const SizedBox(height: 8),
-                      // Like count
+
+                      // Like button with improved visual feedback
                       Row(
                         mainAxisAlignment: MainAxisAlignment.start,
                         children: [
                           GestureDetector(
                             onTap: () => _toggleLike(character),
-                            child: Icon(
-                              character.isLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              color: character.isLiked
-                                  ? Colors.redAccent
-                                  : Colors.white,
-                              size: 16,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            character.likeCount.toString(),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: Colors.white,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: character.isLiked
+                                    ? Colors.redAccent.withOpacity(0.3)
+                                    : Colors.black.withOpacity(0.3),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    character.isLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: character.isLiked
+                                        ? Colors.redAccent
+                                        : Colors.white,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    character.likeCount.toString(),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -1302,70 +1467,139 @@ class _CharacterScreenState extends State<CharacterScreen>
         }
 
         return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
           margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: theme.cardColor,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: isSelected
                 ? Border.all(color: theme.primaryColor, width: 2)
                 : null,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
             ],
           ),
-          child: GestureDetector(
-            onTap: () => _selectCharacter(character),
-            onLongPress: () => _showCharacterInfoPopup(context, character),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(8),
-                leading: SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.transparent,
-                    child: ClipOval(
-                      child: _buildAvatarImage(
-                        character.avatarImagePath,
-                        fit: BoxFit.cover,
-                        memCacheWidth: 112,
-                        memCacheHeight: 112,
-                        heroTag: heroTag,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              splashColor: theme.primaryColor.withOpacity(0.1),
+              highlightColor: theme.primaryColor.withOpacity(0.05),
+              onTap: () => _selectCharacter(character),
+              onLongPress: () => _showCharacterInfoPopup(context, character),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
+                child: ListTile(
+                  contentPadding: const EdgeInsets.all(8),
+                  leading: Hero(
+                    tag: heroTag,
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: ClipOval(
+                        child: _buildAvatarImage(
+                          character.avatarImagePath,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 112,
+                          memCacheHeight: 112,
+                          heroTag: null, // No inner hero tag needed
+                        ),
                       ),
                     ),
                   ),
-                ),
-                title: Text(
-                  character.name,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
+                  title: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          character.name,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isSelected)
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: theme.primaryColor.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.check,
+                            color: theme.primaryColor,
+                            size: 16,
+                          ),
+                        ),
+                    ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Container(
-                  margin: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    processedSummary,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                      height: 1.3,
+                  subtitle: Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          processedSummary,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.7),
+                            height: 1.3,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 6),
+                        // Tags or character traits
+                        if (character.tags.isNotEmpty)
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: character.tags.take(2).map((tag) {
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer
+                                      .withOpacity(0.7),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  tag,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                      ],
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right,
+                    color: theme.colorScheme.onSurfaceVariant.withOpacity(0.7),
                   ),
                 ),
-                trailing: isSelected
-                    ? Icon(Icons.check_circle, color: theme.primaryColor)
-                    : const Icon(Icons.chevron_right),
               ),
             ),
           ),
@@ -1400,71 +1634,111 @@ class _CharacterScreenState extends State<CharacterScreen>
           processedSummary = character.summary;
         }
 
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          curve: Curves.easeInOut,
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(12),
-            border: isSelected
-                ? Border.all(color: theme.primaryColor, width: 2)
-                : null,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: GestureDetector(
+        return Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            splashColor: theme.primaryColor.withOpacity(0.1),
+            highlightColor: theme.primaryColor.withOpacity(0.05),
             onTap: () => _selectCharacter(character),
             onLongPress: () => _showCharacterInfoPopup(context, character),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(12)),
-                    child: _buildAvatarImage(
-                      character.avatarImagePath,
-                      width: double.infinity,
-                      fit: BoxFit.cover,
-                      memCacheWidth: 300,
-                      memCacheHeight: 300,
-                      heroTag: heroTag,
-                    ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              decoration: BoxDecoration(
+                color: theme.cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: isSelected
+                    ? Border.all(color: theme.primaryColor, width: 2)
+                    : null,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        character.name,
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                          child: Hero(
+                            tag: heroTag,
+                            child: _buildAvatarImage(
+                              character.avatarImagePath,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              memCacheWidth: 300,
+                              memCacheHeight: 300,
+                              heroTag: null,
+                            ),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        processedSummary,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color
-                              ?.withOpacity(0.7),
-                          height: 1.2,
+                      Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              character.name,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              processedSummary,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.textTheme.bodySmall?.color
+                                    ?.withOpacity(0.7),
+                                height: 1.2,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
-                ),
-              ],
+                  // Selected indicator
+                  if (isSelected)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         );
