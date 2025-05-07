@@ -1,0 +1,22 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Description: Guidance for integrating with external APIs like AI services or search APIs.
+
+Instructions: When calling external services (e.g., AnnasArchive, Gemini, Claude, OpenAI), implement the logic within a dedicated Service class (e.g., AnnasArchieve, GeminiService, ClaudeService, OpenAiService) in the data/ or domain/ layer of the relevant feature.
+
+Implementation:Create a new Service class or modify an existing one.
+
+Define methods for specific API interactions.
+
+Handle request and response mapping.
+
+Incorporate error handling and logging.
+
+Integrate the service with the BLoC layer to manage state based on API responses (loading, success, error).
+
+Context: Note the project's existing AI integrations and the conceptual RAG pipeline, with some RAG functionality currently handled in GeminiService.
+
+Behavior: Ensure API interaction logic is encapsulated within services, keeping presentation logic separate. Use appropriate error handling and integrate results back into the application state via BLoCs.

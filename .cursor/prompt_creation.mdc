@@ -1,0 +1,10 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Description: Provides specific guidance on how the application should structure prompts when interacting with external AI services (like Gemini, Claude, OpenAI) for core features (content understanding, chat).
+
+Instructions: When implementing features that use AI APIs, ensure prompts are clear, concise, and specific about the desired output format (e.g., JSON for structured data). Include necessary context or examples (few-shot prompting) to guide the AI's response. Explicitly instruct the AI on its role or persona if applicable (role prompting). Include instructions to mitigate risks like hallucination or unsafe outputs, potentially using techniques similar to "Rails" for guiding output or prompting for source citation if knowledge is involved.
+
+Behavior: Guide the implementation of application-level prompting logic according to these standards.

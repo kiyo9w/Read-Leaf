@@ -1,0 +1,24 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Description: Provides essential context about the Read Leaf project architecture and goals.
+
+Instructions: You are assisting with the Read Leaf Flutter/Dart project. The primary goal is to optimize the e-book reading experience by integrating AI for content understanding and providing an all-in-one reading solution.
+
+Key Project Details:Language/Framework: Flutter and Dart.
+
+Architecture: Primarily Feature-Driven, with code organized by features in lib/features/ (e.g., auth, characters, library, reader, search, settings), each typically having data, domain, and presentation layers.
+
+State Management: BLoC pattern using the flutter_bloc package is the primary approach.
+
+Data Handling: Uses Hive for local persistence (preferences, reading progress, chat messages), Supabase as the backend for user accounts, library, and settings synchronization, and interacts with external AI services (Gemini, Claude, OpenAI) and potentially other external APIs.
+
+Internationalization: Uses the intl package for localization, with generated code typically found in generated/l10n.dart. The project supports English and Vietnamese.
+
+Dependency Injection: Uses get_it and injectable.
+
+Error Tracking: Sentry is integrated. HTTP logging uses PrettyDioLogger during development.
+
+Behavior: Always adhere to the existing architectural patterns (Feature-Driven, BLoC, Repository Pattern, Service Layer, DI) and follow Dart/Flutter best practices and style guides. Reference existing code patterns within the relevant feature modules.

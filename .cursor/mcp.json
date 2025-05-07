@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+      "supabase": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://postgres:HZfCzh0ljzJOstOj@db.mzztgtwzzxulfwxjvfrt.supabase.co:5432/postgres"]
+      },
+      "mcp-deepwiki": {
+      "command": "npx",
+      "args": ["-y", "mcp-deepwiki@latest"]
+    }
+    }
+  }
+  

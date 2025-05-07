@@ -1,0 +1,34 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Description: Guidance for adding a new feature to the Read Leaf codebase.
+
+Instructions: When implementing a new feature, follow the established Feature-Driven architecture. Break down the task into smaller, manageable steps.
+
+Steps:Create a new directory within lib/features/ for the feature.
+
+Inside the feature directory, create data, domain, and presentation subdirectories.
+
+Define necessary data models in the domain/models/ directory, using freezed and json_serializable where appropriate.
+
+Implement business logic and repositories in the domain/ layer.
+
+Handle data sources (local Hive, remote via Services/Supabase) in the data/ layer.
+
+Internationalization: Identify all user-facing strings required by the new feature. Use the intl package and the generated/l10n.dart file to manage these strings. Ensure new string keys are added and translated.
+
+API Integration: If the feature requires interaction with external APIs (other than core Supabase functions covered by SupabaseService), create or utilize a dedicated Service class (e.g., AnnasArchiveService, GeminiService, etc.) within the data/ layer of the feature or a shared services/ directory. Encapsulate all API call logic within this service, including request/response handling, error management, and data mapping.
+
+Implement state management using the BLoC pattern in the presentation/blocs/ directory.
+
+Develop UI components (screens, widgets) in the presentation/screens/ and presentation/widgets/ directories.
+
+Configure dependency injection for the new feature's components using get_it and injectable.
+
+Integrate error handling using Sentry and consistent UI feedback (e.g., Utils.showErrorSnackBar).
+
+If applicable, consider data synchronization needs and integrate with the Supabase backend and data_sync_strategy.md guidelines.
+
+Reference: Refer to the structure of existing features like auth, characters, library, reader, search, settings for examples.

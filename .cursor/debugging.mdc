@@ -1,0 +1,27 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Description: Guidance for debugging problems in the Read Leaf codebase.
+
+Instructions: When debugging an issue, follow a systematic approach.
+
+Steps:Check Sentry for logged errors or crash reports related to the issue.
+
+Analyze console logs and stack traces for clues.
+
+Examine the relevant BLoC(s) to understand the state transitions and events leading to the issue.
+
+Trace the data flow through the Service and Repository layers.
+If related to UI, inspect the widget tree and relevant state.
+
+If the issue relates to external APIs or the backend (Supabase or other services), check network requests/responses. Use PrettyDioLogger output during development and review Supabase logs if accessible.
+
+If the issue might involve data synchronization, consult data_sync_strategy.md and the SyncManager logic.
+
+If the issue involves text or localization, verify that the correct strings from generated/l10n.dart are being used and that the corresponding translations exist.
+
+When suggesting fixes, propose changes that align with the existing architecture and use consistent error feedback mechanisms.
+
+Behavior: Prioritize understanding the root cause through the BLoC state and data flow before suggesting code modifications.

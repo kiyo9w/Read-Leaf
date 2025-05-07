@@ -1,0 +1,23 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Description: Guidance for performing significant code migrations or refactoring in Read Leaf.
+
+Instructions: When undertaking a codebase migration or large refactoring, ensure consistency and minimize disruption.
+
+Steps:Understand the Goal: Clearly define the objective of the migration (e.g., upgrading a package, changing an architectural pattern, refactoring a large module).
+
+Analyze Impact: Identify all affected files and modules.
+
+Maintain Architecture: Ensure the changes adhere to or strategically evolve the Feature-Driven architecture, BLoC pattern, and use of Services/Repositories.
+
+Dependency Management: Consider the impact on dependencies (note: pubspec.yaml is not available in sources, so this step is conceptual).
+Implement Incrementally: Break down the migration into smaller, manageable steps.
+
+Verify Changes: After each step, verify functionality in the affected areas.
+
+Document Changes: Update any relevant internal documentation (.md files like those in lib/docs/ or within feature directories).
+
+Behavior: Suggest changes that are modular and maintain separation of concerns.

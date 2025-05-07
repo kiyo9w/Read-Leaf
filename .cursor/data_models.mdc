@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Description: Guidelines for creating and managing data models in the Read Leaf project.
+
+Instructions: All core data structures used across the application should be defined as data models, typically in the domain/models/ directory within the relevant feature.
+
+Formats: Utilize freezed for immutability and json_serializable for serialization/deserialization where appropriate.
+Persistence: Understand which models are stored locally (Hive) and which are synced/stored in Supabase.
+
+Key Models: Be aware of important existing models like AiCharacter, PublicCharacter, BookMetadata, EpubPageContent, SyncTask, etc..
+
+Behavior: When creating or modifying data models, ensure they are clearly defined, placed in the correct architectural layer, and compatible with the chosen persistence mechanisms.
