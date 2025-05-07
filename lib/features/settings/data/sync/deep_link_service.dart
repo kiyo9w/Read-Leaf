@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:uni_links/uni_links.dart';
+import 'package:app_links/app_links.dart';
 
 enum DeepLinkStatus {
   notInitialized,
@@ -17,7 +17,8 @@ class DeepLinkService {
   DeepLinkStatus _status = DeepLinkStatus.notInitialized;
   String? _lastError;
   bool _isInitialized = false;
-  StreamSubscription<Uri?>? _subscription;
+  StreamSubscription<Uri>? _subscription;
+  final _appLinks = AppLinks();
 
   DeepLinkStatus get status => _status;
   String? get lastError => _lastError;
@@ -27,17 +28,15 @@ class DeepLinkService {
 
     try {
       // Handle deep link when app is started from terminated state
-      final initialUri = await getInitialUri();
+      final initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
         unawaited(_handleDeepLink(initialUri));
       }
 
       // Handle deep link when app is in background or foreground
-      _subscription = uriLinkStream.listen(
-        (Uri? uri) {
-          if (uri != null) {
-            unawaited(_handleDeepLink(uri));
-          }
+      _subscription = _appLinks.uriLinkStream.listen(
+        (Uri uri) {
+          unawaited(_handleDeepLink(uri));
         },
         onError: (err) {
           _lastError = err.toString();
@@ -69,7 +68,7 @@ class DeepLinkService {
         final response = await supabase.auth.getSessionFromUrl(uri);
         debugPrint('Successfully handled OAuth callback: ${uri.toString()}');
         return true;
-            }
+      }
       _lastError = 'Unhandled deep link host: ${uri.host}';
       return false;
     } on AuthException catch (e) {

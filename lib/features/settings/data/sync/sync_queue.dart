@@ -10,9 +10,9 @@ class SyncQueue {
   final _statusController = BehaviorSubject<SyncStatus>.seeded(SyncStatus.idle);
   final _maxRetries = 3;
   final _retryDelays = [
-    Duration(seconds: 5), // First retry after 5 seconds
-    Duration(seconds: 30), // Second retry after 30 seconds
-    Duration(seconds: 120), // Third retry after 2 minutes
+    Duration(seconds: 5),
+    Duration(seconds: 30),
+    Duration(seconds: 120),
   ];
 
   Stream<SyncStatus> get status => _statusController.stream;
