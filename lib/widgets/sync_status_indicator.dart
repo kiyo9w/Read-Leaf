@@ -24,17 +24,17 @@ class SyncStatusIndicator extends StatelessWidget {
 
   Widget _buildSyncInProgress(BuildContext context, SyncInProgress state) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primaryContainer,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 16,
-            height: 16,
+            width: 20,
+            height: 20,
             child: CircularProgressIndicator(
               strokeWidth: 2,
               valueColor: AlwaysStoppedAnimation<Color>(
@@ -42,12 +42,13 @@ class SyncStatusIndicator extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Text(
             S.of(context).syncingItemsCount(state.pendingTasks),
             style: TextStyle(
               color: Theme.of(context).colorScheme.onPrimaryContainer,
-              fontSize: 14,
+              fontSize: 16,
+              fontWeight: FontWeight.normal,
             ),
           ),
         ],
@@ -57,28 +58,29 @@ class SyncStatusIndicator extends StatelessWidget {
 
   Widget _buildSyncError(BuildContext context, SyncError state) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey[800],
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
             Icons.error_outline,
-            size: 16,
-            color: Theme.of(context).colorScheme.onErrorContainer,
+            size: 24,
+            color: Colors.white,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Text(
             state.message,
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onErrorContainer,
-              fontSize: 14,
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.normal,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           TextButton(
             onPressed: () {
               context.read<SyncBloc>().add(SyncRetryRequested());
@@ -87,12 +89,13 @@ class SyncStatusIndicator extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               minimumSize: const Size(0, 0),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              foregroundColor: Colors.white,
             ),
             child: Text(
               S.of(context).retry,
               style: TextStyle(
-                color: Theme.of(context).colorScheme.onErrorContainer,
-                fontSize: 14,
+                color: Colors.white,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -104,25 +107,26 @@ class SyncStatusIndicator extends StatelessWidget {
 
   Widget _buildOfflineIndicator(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFF333333),
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.cloud_off,
-            size: 16,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Icons.wifi_off,
+            size: 24,
+            color: Colors.white,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           Text(
             S.of(context).offline,
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 14,
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.normal,
             ),
           ),
         ],

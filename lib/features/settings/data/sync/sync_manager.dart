@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:logging/logging.dart';
+import 'package:read_leaf/core/services/connectivity_service.dart';
 import 'sync_types.dart';
 import 'sync_queue.dart';
 import 'offline_manager.dart';
@@ -17,6 +18,7 @@ class SyncManager {
   final SupabaseClient _supabase;
   final SyncQueue _mainQueue;
   final OfflineManager _offlineManager;
+  final ConnectivityService _connectivityService;
   final _uuid = const Uuid();
   Timer? _syncTimer;
   bool _initialized = false;
@@ -31,9 +33,14 @@ class SyncManager {
   // Add authentication check
   bool get isAuthenticated => _supabase.auth.currentUser != null;
 
+  // Check if device is online using ConnectivityService
+  bool get isOnline =>
+      _connectivityService.status.value == NetworkStatus.online;
+
   SyncManager(this._supabase)
       : _mainQueue = SyncQueue(),
-        _offlineManager = OfflineManager(SyncQueue()) {
+        _offlineManager = OfflineManager(SyncQueue()),
+        _connectivityService = GetIt.instance<ConnectivityService>() {
     // Listen to queue status
     _mainQueue.status.listen((status) {
       _statusController.add(status);
@@ -47,6 +54,20 @@ class SyncManager {
         processPendingTasks();
       }
     });
+
+    // Listen to connectivity changes
+    _connectivityService.status.addListener(_onConnectivityChanged);
+  }
+
+  void _onConnectivityChanged() {
+    // When connection is restored, try to process pending tasks
+    if (_connectivityService.status.value == NetworkStatus.online) {
+      _log.info('Connection restored, processing pending tasks');
+      processPendingTasks();
+    } else {
+      _log.info('Connection lost, marking sync status as offline');
+      _statusController.add(SyncStatus.offline);
+    }
   }
 
   Future<void> initialize() async {
@@ -82,7 +103,7 @@ class SyncManager {
       return;
     }
 
-    if (_offlineManager.isOnline) {
+    if (isOnline) {
       await _mainQueue.addTask(task);
       _log.info('Task added to main queue: ${task.type}');
       // Process immediately if it's a high priority task
@@ -103,7 +124,7 @@ class SyncManager {
       return;
     }
 
-    if (!_offlineManager.isOnline) {
+    if (!isOnline) {
       _log.warning('Cannot process tasks: Device is offline');
       _statusController.add(SyncStatus.offline);
       return;
@@ -155,7 +176,7 @@ class SyncManager {
       priority: SyncPriority.high,
     );
 
-    if (_offlineManager.isOnline) {
+    if (isOnline) {
       await _mainQueue.addTask(task);
     } else {
       await _offlineManager.queueOfflineChanges(task);
@@ -176,7 +197,7 @@ class SyncManager {
       priority: SyncPriority.normal,
     );
 
-    if (_offlineManager.isOnline) {
+    if (isOnline) {
       await _mainQueue.addTask(task);
     } else {
       await _offlineManager.queueOfflineChanges(task);
@@ -197,7 +218,7 @@ class SyncManager {
       priority: SyncPriority.normal,
     );
 
-    if (_offlineManager.isOnline) {
+    if (isOnline) {
       await _mainQueue.addTask(task);
     } else {
       await _offlineManager.queueOfflineChanges(task);
@@ -218,7 +239,7 @@ class SyncManager {
       priority: SyncPriority.low,
     );
 
-    if (_offlineManager.isOnline) {
+    if (isOnline) {
       await _mainQueue.addTask(task);
     } else {
       await _offlineManager.queueOfflineChanges(task);
@@ -575,6 +596,7 @@ class SyncManager {
   void dispose() {
     _log.info('Disposing SyncManager');
     _syncTimer?.cancel();
+    _connectivityService.status.removeListener(_onConnectivityChanged);
     _mainQueue.dispose();
     _offlineManager.dispose();
     _statusController.close();

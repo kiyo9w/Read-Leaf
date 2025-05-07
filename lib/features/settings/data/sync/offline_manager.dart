@@ -1,18 +1,20 @@
 import 'dart:async';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:logging/logging.dart';
+import 'package:read_leaf/core/services/connectivity_service.dart';
+import 'package:read_leaf/injection/injection.dart';
 import 'sync_types.dart';
 import 'sync_queue.dart';
 
 class OfflineManager {
   final _log = Logger('OfflineManager');
-  final Connectivity _connectivity = Connectivity();
   final SyncQueue _offlineQueue;
+  final ConnectivityService _connectivityService;
   final _connectivityController = BehaviorSubject<bool>();
   StreamSubscription? _connectivitySubscription;
 
-  OfflineManager(this._offlineQueue) {
+  OfflineManager(this._offlineQueue)
+      : _connectivityService = getIt<ConnectivityService>() {
     _initConnectivity();
   }
 
@@ -20,20 +22,22 @@ class OfflineManager {
   bool get isOnline => _connectivityController.value;
 
   void _initConnectivity() {
-    _connectivitySubscription =
-        _connectivity.onConnectivityChanged.listen((result) {
-      final isOnline = result != ConnectivityResult.none;
-      _connectivityController.add(isOnline);
+    // Add a listener to the ValueNotifier
+    _connectivityService.status.addListener(_onConnectivityChanged);
 
-      if (isOnline) {
-        syncOfflineChanges();
-      }
-    });
+    // Set initial value based on current connectivity status
+    final initialIsOnline =
+        _connectivityService.status.value == NetworkStatus.online;
+    _connectivityController.add(initialIsOnline);
+  }
 
-    // Check initial connectivity
-    _connectivity.checkConnectivity().then((result) {
-      _connectivityController.add(result != ConnectivityResult.none);
-    });
+  void _onConnectivityChanged() {
+    final isOnline = _connectivityService.status.value == NetworkStatus.online;
+    _connectivityController.add(isOnline);
+
+    if (isOnline) {
+      syncOfflineChanges();
+    }
   }
 
   Future<void> queueOfflineChanges(SyncTask task) async {
@@ -76,7 +80,7 @@ class OfflineManager {
   }
 
   void dispose() {
-    _connectivitySubscription?.cancel();
+    _connectivityService.status.removeListener(_onConnectivityChanged);
     _connectivityController.close();
   }
 }
