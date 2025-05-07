@@ -45,3 +45,31 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+sentry.properties
+*.sql
+*.db
+*.cc
+*.sh
+*.cmake
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Flutter gen code
+/lib/generated
+
+# FVM Version Cache
+.fvm/
+
+/linux/
+/macos/
+/windows/
