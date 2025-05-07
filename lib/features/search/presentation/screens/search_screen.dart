@@ -11,6 +11,9 @@ import 'package:read_leaf/features/search/data/annas_archieve.dart';
 import 'package:read_leaf/features/library/data/thumbnail_service.dart';
 import 'package:read_leaf/core/constants/responsive_constants.dart';
 import '../widgets/book_skeleton.dart';
+import 'package:read_leaf/core/services/connectivity_service.dart';
+import 'package:read_leaf/widgets/offline_state_widget.dart';
+import 'package:read_leaf/core/utils/utils.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -33,6 +36,7 @@ class _SearchScreenState extends State<SearchScreen>
   bool _isScrollingDown = false;
   final Map<String, bool> _expandedSections = {};
   String _selectedCategory = 'Most Downloaded';
+  late final ConnectivityService _connectivityService;
 
   // Add map to store category scroll positions
   final Map<String, GlobalKey> _categoryKeys = {};
@@ -46,18 +50,47 @@ class _SearchScreenState extends State<SearchScreen>
     super.initState();
     _searchBloc = getIt<SearchBloc>();
     _annasArchieve = getIt<AnnasArchieve>();
+    _connectivityService = getIt<ConnectivityService>();
+
+    print(
+        'SearchScreen: Connectivity status: ${_connectivityService.status.value}');
+
     // Initialize category keys
     for (final category in SearchConstants.categoryQueries.keys) {
       _categoryKeys[category] = GlobalKey();
     }
     _fetchInitialData();
     _scrollController.addListener(_scrollListener);
+
+    // Listen for connectivity changes
+    _connectivityService.status.addListener(_handleConnectivityChange);
+
+    // Force a connectivity check
+    _connectivityService.checkConnectivity().then((status) {
+      print('SearchScreen: Initial connectivity check: $status');
+    });
+  }
+
+  void _handleConnectivityChange() {
+    final status = _connectivityService.status.value;
+
+    // If we came back online and have no data, try to fetch it
+    if (status == NetworkStatus.online &&
+        (_categoryBooks == null || _categoryBooks!.isEmpty)) {
+      _fetchInitialData();
+    }
+
+    // Show a snackbar notification when connectivity changes
+    if (mounted && context.mounted) {
+      Utils.showConnectionSnackBar(context, status == NetworkStatus.online);
+    }
   }
 
   @override
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    _connectivityService.status.removeListener(_handleConnectivityChange);
     super.dispose();
   }
 

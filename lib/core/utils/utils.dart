@@ -10,7 +10,7 @@ class Utils {
     overlayEntry = OverlayEntry(
       builder: (context) {
         return Positioned(
-          bottom: 55,
+          bottom: 10,
           left: 16,
           right: 16,
           child: Material(
